@@ -16,18 +16,51 @@ pub fn derive(input: TokenStream) -> TokenStream {
         let mut build_internal = vec![];
         for f in &fields.named {
             let Field { ident, ty, ..} = f;
-            fields_builder.push(quote! {
-                #ident: Option<#ty>
-            });
-            methods_builder.push(quote! {
-                pub fn #ident(&mut self, v: #ty) -> &mut Self {
-                    self.#ident = Some(v);
-                    self
+
+            fn is_option(ty: &Type) -> bool {
+                if let Type::Path(
+                    TypePath {
+                        path: Path {
+                            segments,
+                            ..
+                        },
+                        ..
+                    }
+                ) = ty {
+                    if let Some(PathSegment { ident, .. }) = segments.first() {
+                        return ident.to_string() == "Option";
+                    }
                 }
-            });
-            build_internal.push(quote!{
-                #ident: self.#ident.take()?
-            });
+                return false;
+            }
+
+            if is_option(ty) {
+                fields_builder.push(quote! {
+                    #ident: #ty
+                });
+                methods_builder.push(quote! {
+                    pub fn #ident(&mut self, v: #ty) -> &mut Self {
+                        self.#ident = v;
+                        self
+                    }
+                });
+                build_internal.push(quote!{
+                    #ident: core::mem::take(&mut self.#ident)
+                });
+            } else {
+                fields_builder.push(quote! {
+                    #ident: Option<#ty>
+                });
+                methods_builder.push(quote! {
+                    pub fn #ident(&mut self, v: #ty) -> &mut Self {
+                        self.#ident = Some(v);
+                        self
+                    }
+                });
+                build_internal.push(quote!{
+                    #ident: self.#ident.take()?
+                });
+            }
         }
     
         let expanded = quote! {

@@ -20,8 +20,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 #ident: Option<#ty>
             });
             methods_builder.push(quote! {
-                pub fn #ident(&mut self, v: #ty){
+                pub fn #ident(&mut self, v: #ty) -> &mut Self {
                     self.#ident = Some(v);
+                    self
                 }
             });
             build_internal.push(quote!{

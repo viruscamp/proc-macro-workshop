@@ -13,7 +13,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
         let mut fields_builder = vec![];
         let mut methods_builder = vec![];
-
+        let mut build_internal = vec![];
         for f in &fields.named {
             let Field { ident, ty, ..} = f;
             fields_builder.push(quote! {
@@ -23,6 +23,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 pub fn #ident(&mut self, v: #ty){
                     self.#ident = Some(v);
                 }
+            });
+            build_internal.push(quote!{
+                #ident: self.#ident.take()?
             });
         }
     
@@ -39,6 +42,12 @@ pub fn derive(input: TokenStream) -> TokenStream {
             }
     
             impl #struct_builder_name {
+                pub fn build(&mut self) -> Option<#struct_name> {
+                    Some(#struct_name {
+                        #(#build_internal),*
+                    })
+                }
+
                 #(#methods_builder)*
             }
         };

@@ -17,7 +17,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         for f in &fields.named {
             let Field { ident, ty, ..} = f;
 
-            fn is_option(ty: &Type) -> bool {
+            fn option_inner(ty: &Type) -> Option<&Type> {
                 if let Type::Path(
                     TypePath {
                         path: Path {
@@ -27,20 +27,30 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         ..
                     }
                 ) = ty {
-                    if let Some(PathSegment { ident, .. }) = segments.first() {
-                        return ident.to_string() == "Option";
+                    if let Some(PathSegment {
+                        ident,
+                        arguments: PathArguments::AngleBracketed(
+                            AngleBracketedGenericArguments { args, .. }
+                        ),
+                    }) = segments.first() {
+                        // TODO fails when use full type name `core::option::Option<String>`
+                        if ident.to_string() == "Option" {
+                            if let Some(GenericArgument::Type(t)) = args.first() {
+                                return Some(t);
+                            }
+                        }
                     }
                 }
-                return false;
+                return None;
             }
 
-            if is_option(ty) {
+            if let Some(ty_inner) = option_inner(ty) {
                 fields_builder.push(quote! {
                     #ident: #ty
                 });
                 methods_builder.push(quote! {
-                    pub fn #ident(&mut self, v: #ty) -> &mut Self {
-                        self.#ident = v;
+                    pub fn #ident(&mut self, v: #ty_inner) -> &mut Self {
+                        self.#ident = Some(v);
                         self
                     }
                 });

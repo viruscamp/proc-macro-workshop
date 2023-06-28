@@ -12,24 +12,10 @@ fn main() {
     #[derive(Builder)]
     pub struct Command {
         executable: String,
+        #[builder(each = "arg")]
         args: Vec<String>,
+        #[builder(each = env)]
         env: Vec<String>,
         current_dir: Option<String>,
-    }
-
-    #[derive(Builder)]
-    pub struct Command1 {
-        executable: String,
-        args: Vec<String>,
-        env: Vec<String>,
-        current_dir: String,
-    }
-
-    #[derive(Builder)]
-    pub struct Command2 {
-        executable: String,
-        args: Vec<String>,
-        env: Vec<String>,
-        current_dir: core::option::Option<String>,
     }
 }

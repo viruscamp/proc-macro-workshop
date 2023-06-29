@@ -39,4 +39,10 @@ fn main() {
 
     #[derive(Builder)]
     pub struct Command3(i32, u32);
+
+    #[derive(Debug)]
+    pub struct Field {
+        name: &'static str,
+        bitmask: u8,
+    }
 }

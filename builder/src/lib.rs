@@ -1,12 +1,11 @@
 #![feature(let_chains)]
 
-use proc_macro::TokenStream;
-use proc_macro2::{TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{TokenStream, TokenTree};
 use quote::*;
 use syn::*;
 
 #[proc_macro_derive(Builder, attributes(builder))]
-pub fn derive(input: TokenStream) -> TokenStream {
+pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let vis = &input.vis;
@@ -66,7 +65,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 return None;
             }) {
                 // find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
-                fn get_each_method_name(attr: &Attribute, tokens: &TokenStream2) -> Result<Ident> {
+                fn get_each_method_name(attr: &Attribute, tokens: &TokenStream) -> Result<Ident> {
                     let mut tokens_iter = tokens.to_token_stream().into_iter();
                     if let Some(TokenTree::Ident(id_each)) = tokens_iter.next()
                         && id_each.to_string() == "each"
@@ -122,7 +121,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         });
                     } else {
                         errors_builder.push(
-                            Error::new_spanned(ty, "builder attr without Vec type")
+                            Error::new_spanned(ty, "builder attr each without Vec type")
                         )
                     }
                     },
@@ -194,5 +193,5 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
     };
 
-    TokenStream::from(expanded)
+    proc_macro::TokenStream::from(expanded)
 }

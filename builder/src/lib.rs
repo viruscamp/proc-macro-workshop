@@ -1,7 +1,7 @@
 #![feature(let_chains)]
 
-use proc_macro::{TokenStream};
-use proc_macro2::{TokenTree};
+use proc_macro::TokenStream;
+use proc_macro2::{TokenStream as TokenStream2, TokenTree};
 use quote::*;
 use syn::*;
 
@@ -17,6 +17,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         let struct_name = input.ident;
         let struct_builder_name = format_ident!("{struct_name}Builder");
 
+        let mut errors_builder = vec![];
         let mut fields_builder = vec![];
         let mut methods_builder = vec![];
         let mut build_internal = vec![];
@@ -51,44 +52,63 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
             let generic_inner_a = generic_inner(ty);
 
-            // find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
-            if let Some(each_method_name) = attrs.iter().find_map(|attr| {
-                if let Attribute {
-                    meta: Meta::List(MetaList {
+            // find `#[builder(..)]`
+            if let Some((attr, tokens)) = attrs.iter().find_map(|attr| {
+                if let Meta::List(MetaList {
                         path,
                         tokens,
                         ..
-                    }),
-                    ..
-                } = attr
+                    }) = &attr.meta
                     && let Some(id_builder) = path.get_ident()
                     && id_builder.to_string() == "builder"
                 {
-                    let mut tokens = tokens.to_token_stream().into_iter();
-                    if let Some(TokenTree::Ident(id_each)) = tokens.next()
-                        && id_each.to_string() == "each"
-                        && let Some(TokenTree::Punct(punct_eq)) = tokens.next()
-                        && punct_eq.as_char() == '='
-                        && let Some(method_name) = tokens.next()
-                    {
-                        if let TokenTree::Literal(method_name) = method_name {
-                            if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&method_name.to_string()) {
-                                return Some(Ident::new(&s.value(), method_name.span()));
-                            } else {
-                                // TODO report Error
-                            }
-                        } else if let TokenTree::Ident(method_name) = method_name {
-                            return Some(method_name);
-                        } else {
-                            // TODO report Error
-                        }
-                    }
+                    return Some((attr, tokens));
                 }
                 return None;
             }) {
-                if let Some((wrapper, ty_inner)) = generic_inner_a
-                    && wrapper.to_string() == "Vec"
-                {
+                // find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
+                fn get_each_method_name(attr: &Attribute, tokens: &TokenStream2) -> Result<Ident> {
+                    let mut tokens_iter = tokens.to_token_stream().into_iter();
+                    if let Some(TokenTree::Ident(id_each)) = tokens_iter.next()
+                        && id_each.to_string() == "each"
+                        && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
+                        && punct_eq.as_char() == '='
+                        && let Some(method_name) = tokens_iter.next()
+                    {
+                        if let TokenTree::Literal(method_name) = method_name {
+                            if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&method_name.to_string()) {
+                                if let Ok(mut id) = syn::parse_str::<Ident>(&s.value()) {
+                                    id.set_span(method_name.span());
+                                    return Ok(id);
+                                } else {
+                                    return Err(
+                                        Error::new_spanned(method_name, "not a valid ident")
+                                    );
+                                }
+                            } else {
+                                return Err(
+                                    Error::new_spanned(method_name, "lit is not str")
+                                );
+                            }
+                        } else if let TokenTree::Ident(method_name) = method_name {
+                            return Ok(method_name);
+                        } else {
+                            return Err(
+                                Error::new_spanned(method_name, "not lit str nor ident")
+                            )
+                        }
+                    } else {
+                        return Err(
+                            Error::new_spanned(&attr.meta, "expected `builder(each = \"...\")`")
+                        )
+                    }
+                }
+
+                match get_each_method_name(attr, tokens) {
+                    Ok(each_method_name) => {
+                        if let Some((wrapper, ty_inner)) = generic_inner_a
+                        && wrapper.to_string() == "Vec"
+                    {
                         fields_builder.push(quote! {
                             #ident: #ty
                         });
@@ -101,8 +121,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         build_internal.push(quote! {
                             #ident: core::mem::take(&mut self.#ident)
                         });
-                } else {
-                    // TODO report Error
+                    } else {
+                        errors_builder.push(
+                            Error::new_spanned(ty, "builder attr without Vec type").to_compile_error()
+                        )
+                    }
+                    },
+                    Err(err) => {
+                        errors_builder.push(err.to_compile_error());
+                    },
                 }
             } else if let Some((wrapper, ty_inner)) = generic_inner_a
                 && wrapper.to_string() == "Option"
@@ -134,33 +161,39 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 });
             }
         }
-
-        let expanded = quote! {
-            impl #struct_name {
-                pub fn builder() -> #struct_builder_name {
-                    <#struct_builder_name as Default>::default()
-                }
-            }
-
-            #[derive(Default)]
-            pub struct #struct_builder_name {
-                #(#fields_builder),*
-            }
-
-            impl #struct_builder_name {
-                pub fn build(&mut self) -> Option<#struct_name> {
-                    Some(#struct_name {
-                        #(#build_internal),*
-                    })
+        let vis = input.vis;
+        let expanded = if errors_builder.is_empty() {
+            quote! {
+                impl #struct_name {
+                    pub fn builder() -> #struct_builder_name {
+                        <#struct_builder_name as Default>::default()
+                    }
                 }
 
-                #(#methods_builder)*
+                #[derive(Default)]
+                #vis struct #struct_builder_name {
+                    #(#fields_builder),*
+                }
+
+                impl #struct_builder_name {
+                    pub fn build(&mut self) -> Option<#struct_name> {
+                        Some(#struct_name {
+                            #(#build_internal),*
+                        })
+                    }
+
+                    #(#methods_builder)*
+                }
+            }
+        } else {
+            quote! {
+                #(#errors_builder)*
             }
         };
 
         TokenStream::from(expanded)
     } else {
-        // TODO error
-        TokenStream::new()
+        let expanded = Error::new_spanned(&input, "should be struct").to_compile_error();
+        TokenStream::from(expanded)
     }
 }

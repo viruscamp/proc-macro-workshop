@@ -110,7 +110,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         && wrapper.to_string() == "Vec"
                     {
                         fields_builder.push(quote! {
-                            #ident: #ty
+                            #ident: std::vec::#ty
                         });
                         methods_builder.push(quote! {
                             pub fn #each_method_name(&mut self, v: #ty_inner) -> &mut Self {
@@ -135,11 +135,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 && wrapper.to_string() == "Option"
             {
                 fields_builder.push(quote! {
-                    #ident: #ty
+                    #ident: core::option::#ty
                 });
                 methods_builder.push(quote! {
                     pub fn #ident(&mut self, v: #ty_inner) -> &mut Self {
-                        self.#ident = Some(v);
+                        self.#ident = core::option::Option::Some(v);
                         self
                     }
                 });
@@ -148,11 +148,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 });
             } else {
                 fields_builder.push(quote! {
-                    #ident: Option<#ty>
+                    #ident: core::option::Option<#ty>
                 });
                 methods_builder.push(quote! {
                     pub fn #ident(&mut self, v: #ty) -> &mut Self {
-                        self.#ident = Some(v);
+                        self.#ident = core::option::Option::Some(v);
                         self
                     }
                 });
@@ -166,7 +166,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
             quote! {
                 impl #struct_name {
                     pub fn builder() -> #struct_builder_name {
-                        <#struct_builder_name as Default>::default()
+                        <#struct_builder_name as core::default::Default>::default()
                     }
                 }
 
@@ -176,7 +176,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 }
 
                 impl #struct_builder_name {
-                    pub fn build(&mut self) -> Option<#struct_name> {
+                    pub fn build(&mut self) -> core::option::Option<#struct_name> {
                         Some(#struct_name {
                             #(#build_internal),*
                         })

@@ -9,18 +9,20 @@ use syn::*;
 pub fn derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
+    let vis = &input.vis;
+    let struct_name = &input.ident;
+    let struct_builder_name = format_ident!("{struct_name}Builder");
+
+    let mut errors_builder = vec![];
+    let mut fields_builder = vec![];
+    let mut methods_builder = vec![];
+    let mut build_internal = vec![];
+
     if let Data::Struct(DataStruct {
         fields: Fields::Named(ref fields),
         ..
     }) = input.data
     {
-        let struct_name = input.ident;
-        let struct_builder_name = format_ident!("{struct_name}Builder");
-
-        let mut errors_builder = vec![];
-        let mut fields_builder = vec![];
-        let mut methods_builder = vec![];
-        let mut build_internal = vec![];
         for f in &fields.named {
             let Field {
                 ident, ty, attrs, ..
@@ -28,29 +30,26 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
             // find `current_dir: Option<String>` or `args: Vec<String>`
             // failed for `current_dir: core::option::Option<String>`
-            fn generic_inner(ty: &Type) -> Option<(&Ident, &Type)> {
+            fn get_generic_inner(ty: &Type) -> Option<(&Ident, &Type)> {
                 if let Type::Path(TypePath {
-                    path: Path { segments, .. },
-                    ..
-                }) = ty
-                {
-                    if let Some(PathSegment {
+                        path: Path { segments, .. },
+                        ..
+                    }) = ty
+                    && let Some(PathSegment {
                         ident,
                         arguments:
                             PathArguments::AngleBracketed(AngleBracketedGenericArguments {
                                 args, ..
                             }),
                     }) = segments.first()
-                    {
-                        if let Some(GenericArgument::Type(t)) = args.first() {
-                            return Some((ident, t));
-                        }
-                    }
+                    && let Some(GenericArgument::Type(t)) = args.first()
+                {
+                    return Some((ident, t));
                 }
                 return None;
             }
 
-            let generic_inner_a = generic_inner(ty);
+            let generic_inner = get_generic_inner(ty);
 
             // find `#[builder(..)]`
             if let Some((attr, tokens)) = attrs.iter().find_map(|attr| {
@@ -106,11 +105,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
                 match get_each_method_name(attr, tokens) {
                     Ok(each_method_name) => {
-                        if let Some((wrapper, ty_inner)) = generic_inner_a
+                        if let Some((wrapper, ty_inner)) = generic_inner
                         && wrapper.to_string() == "Vec"
                     {
                         fields_builder.push(quote! {
-                            #ident: std::vec::#ty
+                            #ident: std::vec::Vec<#ty_inner>
                         });
                         methods_builder.push(quote! {
                             pub fn #each_method_name(&mut self, v: #ty_inner) -> &mut Self {
@@ -123,19 +122,19 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         });
                     } else {
                         errors_builder.push(
-                            Error::new_spanned(ty, "builder attr without Vec type").to_compile_error()
+                            Error::new_spanned(ty, "builder attr without Vec type")
                         )
                     }
                     },
                     Err(err) => {
-                        errors_builder.push(err.to_compile_error());
+                        errors_builder.push(err);
                     },
                 }
-            } else if let Some((wrapper, ty_inner)) = generic_inner_a
+            } else if let Some((wrapper, ty_inner)) = generic_inner
                 && wrapper.to_string() == "Option"
             {
                 fields_builder.push(quote! {
-                    #ident: core::option::#ty
+                    #ident: core::option::Option<#ty_inner>
                 });
                 methods_builder.push(quote! {
                     pub fn #ident(&mut self, v: #ty_inner) -> &mut Self {
@@ -161,39 +160,39 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 });
             }
         }
-        let vis = input.vis;
-        let expanded = if errors_builder.is_empty() {
-            quote! {
-                impl #struct_name {
-                    pub fn builder() -> #struct_builder_name {
-                        <#struct_builder_name as core::default::Default>::default()
-                    }
-                }
-
-                #[derive(Default)]
-                #vis struct #struct_builder_name {
-                    #(#fields_builder),*
-                }
-
-                impl #struct_builder_name {
-                    pub fn build(&mut self) -> core::option::Option<#struct_name> {
-                        Some(#struct_name {
-                            #(#build_internal),*
-                        })
-                    }
-
-                    #(#methods_builder)*
-                }
-            }
-        } else {
-            quote! {
-                #(#errors_builder)*
-            }
-        };
-
-        TokenStream::from(expanded)
     } else {
-        let expanded = Error::new_spanned(&input, "should be struct").to_compile_error();
-        TokenStream::from(expanded)
+        errors_builder.push(Error::new_spanned(&input, "should be struct"));
     }
+
+    let expanded = if errors_builder.is_empty() {
+        quote! {
+            impl #struct_name {
+                pub fn builder() -> #struct_builder_name {
+                    <#struct_builder_name as core::default::Default>::default()
+                }
+            }
+
+            #[derive(Default)]
+            #vis struct #struct_builder_name {
+                #(#fields_builder),*
+            }
+
+            impl #struct_builder_name {
+                pub fn build(&mut self) -> core::option::Option<#struct_name> {
+                    Some(#struct_name {
+                        #(#build_internal),*
+                    })
+                }
+
+                #(#methods_builder)*
+            }
+        }
+    } else {
+        let errors_builder = errors_builder.iter().map(Error::to_compile_error);
+        quote! {
+            #(#errors_builder)*
+        }
+    };
+
+    TokenStream::from(expanded)
 }

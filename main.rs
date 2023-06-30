@@ -40,9 +40,13 @@ fn main() {
     #[derive(Builder)]
     pub struct Command3(i32, u32);
 
-    #[derive(Debug)]
+
+    use derive_debug::CustomDebug;
+
+    #[derive(CustomDebug)]
     pub struct Field {
         name: &'static str,
+        #[debug = "0b{:08b}"]
         bitmask: u8,
     }
 }

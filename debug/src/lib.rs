@@ -1,7 +1,7 @@
 #![feature(let_chains)]
 
 use proc_macro2::*;
-use syn::*;
+use syn::{*, parse::Parse};
 use quote::*;
 
 #[proc_macro_derive(CustomDebug, attributes(debug))]
@@ -52,10 +52,38 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         errors.push(Error::new_spanned(&input, "should be struct"));
     }
 
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let where_clause_debug = if let Some(where_clause) = where_clause {
+        let mut where_clause = where_clause.clone();
+        let debug_trait_bound = syn::parse_str::<TraitBound>("::core::fmt::Debug").unwrap();
+        where_clause.predicates.iter_mut().for_each(|predicate| {
+            if let WherePredicate::Type(x) = predicate {
+                x.bounds.extend(Some(TypeParamBound::Trait(debug_trait_bound.clone())))
+            }
+        });
+        where_clause.to_token_stream()
+    } else {
+        let type_parmas = generics.params.iter()
+        .filter_map(|gp| {
+            if let GenericParam::Type(tp) = gp {
+                Some(tp)
+            } else {
+                None
+            }
+        });
+        quote! {
+            where #(#type_parmas: ::core::fmt::Debug),*
+        }
+    };
+
     let errors = errors.iter().map(Error::to_compile_error);
     let expand = quote! {
         #(#errors)*
-        impl ::core::fmt::Debug for #struct_name {
+        impl #impl_generics ::core::fmt::Debug for #struct_name #ty_generics
+            #where_clause_debug
+        {
             fn fmt(&self, fmt: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 fmt.debug_struct(stringify!(#struct_name))
                     #(#fields_debug)*

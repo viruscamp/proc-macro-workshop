@@ -49,4 +49,30 @@ fn main() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+
+    #[derive(CustomDebug)]
+    pub struct Field041<T> {
+        value: T,
+        #[debug = "0b{:08b}"]
+        bitmask: u8,
+    }
+
+    #[derive(CustomDebug)]
+    pub struct Field042<T: Clone, X> where X: Sized {
+        value: T,
+        x: X,
+        #[debug = "0b{:08b}"]
+        bitmask: u8,
+    }
+
+    type S = String;
+
+    #[derive(CustomDebug)]
+    pub struct Field05<T> {
+        marker: PhantomData<T>,
+        string: S,
+        #[debug = "0b{:08b}"]
+        bitmask: u8,
+    }
+
 }

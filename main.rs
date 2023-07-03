@@ -26,14 +26,14 @@ fn builder() {
     // should we recognize Option below to use Option builder?
     #[derive(Builder)]
     struct CommandFuzzyOption {
-        o0: Option<u32>, // normal
+        o0: Option<u32>, // normal, may fail `type Option = ();`
         o1: ::core::option::Option<i32>, // should work
         o2: core::option::Option<i32>, // should work, may fail
         o3: ::std::option::Option<i32>, // should work
         o4: std::option::Option<i32>, // should work, may fail
 
-        o5: OptionRexport<String>, // cannot make it work
-        o6: OptionI32, // cannot make it work
+        o5: OptionRexport<String>, // impossible
+        o6: OptionI32, // impossible
     }
     
     #[derive(Builder)]
@@ -104,5 +104,28 @@ fn debug() {
         string: S,
         #[debug = "0b{:08b}"]
         bitmask: u8,
+    }
+
+    // should mark T: Debug
+    #[derive(CustomDebug)]
+    pub struct Field051<T> {
+        marker: PhantomData<T>,
+        string: S,
+        #[debug = "0b{:08b}"]
+        bitmask: u8,
+
+        addtional_t: T,
+    }
+
+    // no need to mark T: Debug
+    #[derive(CustomDebug)]
+    pub struct Field052<T> {
+        marker: PhantomData<Option<T>>,
+    }
+
+    #[derive(CustomDebug)]
+    pub struct Field053<T> {
+        t1: T,
+        t2: T,
     }
 }

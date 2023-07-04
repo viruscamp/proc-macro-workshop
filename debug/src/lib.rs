@@ -3,6 +3,7 @@
 use proc_macro2::*;
 use syn::*;
 use quote::*;
+use mylib_macro::*;
 
 #[proc_macro_derive(CustomDebug, attributes(debug))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -70,7 +71,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         errors.push(Error::new_spanned(&input.ident, "should be struct"));
     }
 
-    eprintln!("{struct_name} {generics_params_used:?}");
+    //eprintln!("{struct_name} {generics_params_used:?}");
     let debug_trait_bound = syn::parse2::<TypeParamBound>(quote!{
         ::core::fmt::Debug
     }).unwrap();
@@ -151,88 +152,4 @@ fn where_bound_field(where_clause: &mut WhereClause, f: &Field) {
         #field_type: ::core::fmt::Debug
     }).unwrap();
     where_clause.predicates.extend(Some(field_debug_where));
-}
-
-// all segments must be ident, ignore all <>
-fn is_path(p: &Path, tocmp: &Path) -> bool {
-    if p.leading_colon != tocmp.leading_colon {
-        return false;
-    }
-    if p.segments.len() != tocmp.segments.len() {
-        return false;
-    }
-    for (idx, s) in p.segments.iter().enumerate() {
-        let tocmps = &tocmp.segments[idx];
-        if s.ident != tocmps.ident {
-            return false;
-        }
-    }
-    return true;
-}
-
-fn types_phantom() -> Vec<Path> {
-    vec![
-        syn::parse2::<Path>(quote!(PhantomData)).unwrap(),
-        syn::parse2::<Path>(quote!(::core::marker::PhantomData)).unwrap(),
-        syn::parse2::<Path>(quote!(core::marker::PhantomData)).unwrap(),
-        syn::parse2::<Path>(quote!(::std::marker::PhantomData)).unwrap(),
-        syn::parse2::<Path>(quote!(std::marker::PhantomData)).unwrap(),
-    ]
-}
-
-fn is_phantom(path: &Path) -> Option<&Type> {
-    if let Some(last) = path.segments.last()
-        && let PathArguments::AngleBracketed(ref tps) = last.arguments
-        && tps.args.len() == 1
-        && let Some(GenericArgument::Type(ty)) = tps.args.first()
-        && types_phantom().iter()
-            .find(|phantom_type| is_path(path, phantom_type))
-            .is_some()
-    {
-        return Some(ty);
-    }
-    return None;
-}
-
-// will ignore PhantomData<T>
-fn contains_generic_param(ty: &Type, gpid: &Ident) -> bool {
-    match ty {
-        Type::Path(TypePath { path, .. }) => {
-            if Some(gpid) == path.get_ident() {
-                true
-            } else if is_phantom(path).is_some() {
-                false
-            } else if let Some(PathSegment {
-                arguments: PathArguments::AngleBracketed(
-                    AngleBracketedGenericArguments {
-                        args,
-                        .. 
-                    }
-                ),
-                ..
-            }) = path.segments.last() {
-                args.iter().any(|arg| {
-                    match arg {
-                        GenericArgument::Type(ref ty)
-                            | GenericArgument::AssocType(AssocType { ref ty, ..  })
-                        => contains_generic_param(ty, gpid),
-                        _ => false,
-                    }
-                })
-            } else {
-                false
-            }
-        },
-        Type::Tuple(TypeTuple { elems, .. }) => {
-            elems.iter().any(|ty| contains_generic_param(ty, gpid))
-        },
-        Type::Paren(TypeParen { elem, .. })
-            | Type::Array(TypeArray { elem, .. }) 
-            | Type::Slice(TypeSlice { elem, ..  })
-            | Type::Reference(TypeReference { elem, ..  }) 
-        => {
-            contains_generic_param(elem.as_ref(), gpid)
-        },
-        _ => false,
-    }
 }

@@ -3,6 +3,7 @@
 use proc_macro2::{TokenStream, TokenTree};
 use quote::*;
 use syn::*;
+use mylib_macro::*;
 
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -26,29 +27,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             let Field {
                 ident, ty, attrs, ..
             } = f;
-
-            // find `current_dir: Option<String>` or `args: Vec<String>`
-            // failed for `current_dir: core::option::Option<String>`
-            fn get_generic_inner(ty: &Type) -> Option<(&Ident, &Type)> {
-                if let Type::Path(TypePath {
-                        path: Path { segments, .. },
-                        ..
-                    }) = ty
-                    && let Some(PathSegment {
-                        ident,
-                        arguments:
-                            PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                                args, ..
-                            }),
-                    }) = segments.first()
-                    && let Some(GenericArgument::Type(t)) = args.first()
-                {
-                    return Some((ident, t));
-                }
-                return None;
-            }
-
-            let generic_inner = get_generic_inner(ty);
 
             // find `#[builder(..)]`
             if let Some((attr, tokens)) = attrs.iter().find_map(|attr| {
@@ -104,11 +82,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                 match get_each_method_name(attr, tokens) {
                     Ok(each_method_name) => {
-                        if let Some((wrapper, ty_inner)) = generic_inner
-                        && wrapper.to_string() == "Vec"
+                        if let Some(ty_inner) = is_vec(ty)
                     {
                         fields_builder.push(quote! {
-                            #ident: std::vec::Vec<#ty_inner>
+                            #ident: ::std::vec::Vec<#ty_inner>
                         });
                         methods_builder.push(quote! {
                             pub fn #each_method_name(&mut self, v: #ty_inner) -> &mut Self {
@@ -117,7 +94,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                             }
                         });
                         build_internal.push(quote! {
-                            #ident: core::mem::take(&mut self.#ident)
+                            #ident: ::core::mem::take(&mut self.#ident)
                         });
                     } else {
                         errors_builder.push(
@@ -129,28 +106,26 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         errors_builder.push(err);
                     },
                 }
-            } else if let Some((wrapper, ty_inner)) = generic_inner
-                && wrapper.to_string() == "Option"
-            {
+            } else if let Some(ty_inner) = is_option(ty) {
                 fields_builder.push(quote! {
-                    #ident: core::option::Option<#ty_inner>
+                    #ident: ::core::option::Option<#ty_inner>
                 });
                 methods_builder.push(quote! {
                     pub fn #ident(&mut self, v: #ty_inner) -> &mut Self {
-                        self.#ident = core::option::Option::Some(v);
+                        self.#ident = ::core::option::Option::Some(v);
                         self
                     }
                 });
                 build_internal.push(quote!{
-                    #ident: core::mem::take(&mut self.#ident)
+                    #ident: ::core::mem::take(&mut self.#ident)
                 });
             } else {
                 fields_builder.push(quote! {
-                    #ident: core::option::Option<#ty>
+                    #ident: ::core::option::Option<#ty>
                 });
                 methods_builder.push(quote! {
                     pub fn #ident(&mut self, v: #ty) -> &mut Self {
-                        self.#ident = core::option::Option::Some(v);
+                        self.#ident = ::core::option::Option::Some(v);
                         self
                     }
                 });
@@ -167,7 +142,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         quote! {
             impl #struct_name {
                 pub fn builder() -> #struct_builder_name {
-                    <#struct_builder_name as core::default::Default>::default()
+                    <#struct_builder_name as ::core::default::Default>::default()
                 }
             }
 
@@ -177,7 +152,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
 
             impl #struct_builder_name {
-                pub fn build(&mut self) -> core::option::Option<#struct_name> {
+                pub fn build(&mut self) -> ::core::option::Option<#struct_name> {
                     Some(#struct_name {
                         #(#build_internal),*
                     })

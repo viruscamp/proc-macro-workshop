@@ -70,6 +70,7 @@ fn debug() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+    //Field []
 
     #[derive(CustomDebug)]
     pub struct Field041<T> {
@@ -77,6 +78,7 @@ fn debug() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+    //Field041 [(Some(Ident { ident: "T", span: #0 bytes(1791..1792) }), true)]
 
     #[derive(CustomDebug)]
     pub struct Field042<T: Clone, X> where X: Sized {
@@ -85,6 +87,7 @@ fn debug() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+    //Field042 [(Some(Ident { ident: "T", span: #0 bytes(1994..1995) }), true), (Some(Ident { ident: "X", span: #0 bytes(2004..2005) }), true)]
 
     #[derive(CustomDebug)]
     pub struct Field043<T: Clone + ::core::fmt::Debug, X> where X: Sized {
@@ -93,6 +96,7 @@ fn debug() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+    //Field043 [(Some(Ident { ident: "T", span: #0 bytes(2300..2301) }), true), (Some(Ident { ident: "X", span: #0 bytes(2331..2332) }), true)]
 
     use core::marker::PhantomData;
 
@@ -105,6 +109,7 @@ fn debug() {
         #[debug = "0b{:08b}"]
         bitmask: u8,
     }
+    //Field05 [(Some(Ident { ident: "T", span: #0 bytes(2684..2685) }), false)]
 
     // should mark T: Debug
     #[derive(CustomDebug)]
@@ -116,16 +121,33 @@ fn debug() {
 
         addtional_t: T,
     }
+    //Field051 [(Some(Ident { ident: "T", span: #0 bytes(2957..2958) }), true)]
 
     // no need to mark T: Debug
     #[derive(CustomDebug)]
     pub struct Field052<T> {
         marker: PhantomData<Option<T>>,
     }
+    //Field052 [(Some(Ident { ident: "T", span: #0 bytes(3179..3180) }), false)]
 
     #[derive(CustomDebug)]
     pub struct Field053<T> {
         t1: T,
         t2: T,
     }
+    //Field053 [(Some(Ident { ident: "T", span: #0 bytes(3282..3283) }), true)]
+
+    // 06-bound-trouble
+    #[derive(CustomDebug)]
+    pub struct One<T> {
+        value: T,
+        two: Option<Box<Two<T>>>,
+    }
+    //One [(Some(Ident { ident: "T", span: #0 bytes(3474..3475) }), true)]
+
+    #[derive(CustomDebug)]
+    struct Two<T> {
+        one: Box<One<T>>,
+    }
+    //Two [(Some(Ident { ident: "T", span: #0 bytes(3580..3581) }), true)]
 }

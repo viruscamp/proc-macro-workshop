@@ -13,7 +13,14 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut errors = vec![];
     let mut fields_debug = vec![];
 
-    let mut where_clause = input.generics.make_where_clause();
+    // 方法4 检查每个泛型参数是否在field中使用，Phantom<T> 不算使用, Box<Option<T>> 算
+    let mut generics_params_used = input.generics.params.iter().map(|gp| {
+        if let GenericParam::Type(TypeParam { ident, ..   }) = gp {
+            (Some(ident.clone()), false)
+        } else {
+            (None, false)
+        }
+    }).collect::<Vec<_>>();
 
     if let Data::Struct(DataStruct {
         fields: Fields::Named(ref fields),
@@ -49,14 +56,31 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     .field(stringify!(#field_name), &self.#field_name)
                 });
             }
-            where_bound_field(where_clause, f);
+            let fty = &f.ty;
+            generics_params_used.iter_mut()
+            .filter(|(_, used)| !used)
+            .for_each(|(id, used)| {
+                if let Some(id) = id
+                    && contains_generic_param(fty, id) {
+                    *used = true
+                }
+            });
         }
     } else {
         errors.push(Error::new_spanned(&input.ident, "should be struct"));
     }
 
-    //where_bound_generic(&mut input.generics);
-    //params_bound_generic(&mut input.generics);
+    eprintln!("{struct_name} {generics_params_used:?}");
+    let debug_trait_bound = syn::parse2::<TypeParamBound>(quote!{
+        ::core::fmt::Debug
+    }).unwrap();
+    for (idx, gp) in input.generics.params.iter_mut().enumerate() {
+        if let GenericParam::Type(tp) = gp 
+            && generics_params_used[idx].1
+        {
+            tp.bounds.extend(Some(debug_trait_bound.clone()));
+        }
+    }
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
@@ -91,7 +115,7 @@ fn where_bound_generic(generics: &mut Generics) {
     for tpident in tpidents {
         let debug_trait_bound = syn::parse2::<WherePredicate>(quote!{
             #tpident: ::core::fmt::Debug
-        }.to_token_stream()).unwrap();
+        }).unwrap();
         where_clause.predicates.extend(Some(debug_trait_bound))
     }
 }
@@ -104,7 +128,7 @@ fn params_bound_generic(generics: &mut Generics) {
         if let GenericParam::Type(tp) = p {
             let debug_trait_bound = syn::parse2::<TypeParamBound>(quote!{
                 ::core::fmt::Debug
-            }.to_token_stream()).unwrap();
+            }).unwrap();
             tp.bounds.extend(Some(debug_trait_bound));
         }
     }
@@ -125,6 +149,90 @@ fn where_bound_field(where_clause: &mut WhereClause, f: &Field) {
     let field_type = &f.ty;
     let field_debug_where = syn::parse2::<WherePredicate>(quote!{
         #field_type: ::core::fmt::Debug
-    }.to_token_stream()).unwrap();
+    }).unwrap();
     where_clause.predicates.extend(Some(field_debug_where));
+}
+
+// all segments must be ident, ignore all <>
+fn is_path(p: &Path, tocmp: &Path) -> bool {
+    if p.leading_colon != tocmp.leading_colon {
+        return false;
+    }
+    if p.segments.len() != tocmp.segments.len() {
+        return false;
+    }
+    for (idx, s) in p.segments.iter().enumerate() {
+        let tocmps = &tocmp.segments[idx];
+        if s.ident != tocmps.ident {
+            return false;
+        }
+    }
+    return true;
+}
+
+fn types_phantom() -> Vec<Path> {
+    vec![
+        syn::parse2::<Path>(quote!(PhantomData)).unwrap(),
+        syn::parse2::<Path>(quote!(::core::marker::PhantomData)).unwrap(),
+        syn::parse2::<Path>(quote!(core::marker::PhantomData)).unwrap(),
+        syn::parse2::<Path>(quote!(::std::marker::PhantomData)).unwrap(),
+        syn::parse2::<Path>(quote!(std::marker::PhantomData)).unwrap(),
+    ]
+}
+
+fn is_phantom(path: &Path) -> Option<&Type> {
+    if let Some(last) = path.segments.last()
+        && let PathArguments::AngleBracketed(ref tps) = last.arguments
+        && tps.args.len() == 1
+        && let Some(GenericArgument::Type(ty)) = tps.args.first()
+        && types_phantom().iter()
+            .find(|phantom_type| is_path(path, phantom_type))
+            .is_some()
+    {
+        return Some(ty);
+    }
+    return None;
+}
+
+// will ignore PhantomData<T>
+fn contains_generic_param(ty: &Type, gpid: &Ident) -> bool {
+    match ty {
+        Type::Path(TypePath { path, .. }) => {
+            if Some(gpid) == path.get_ident() {
+                true
+            } else if is_phantom(path).is_some() {
+                false
+            } else if let Some(PathSegment {
+                arguments: PathArguments::AngleBracketed(
+                    AngleBracketedGenericArguments {
+                        args,
+                        .. 
+                    }
+                ),
+                ..
+            }) = path.segments.last() {
+                args.iter().any(|arg| {
+                    match arg {
+                        GenericArgument::Type(ref ty)
+                            | GenericArgument::AssocType(AssocType { ref ty, ..  })
+                        => contains_generic_param(ty, gpid),
+                        _ => false,
+                    }
+                })
+            } else {
+                false
+            }
+        },
+        Type::Tuple(TypeTuple { elems, .. }) => {
+            elems.iter().any(|ty| contains_generic_param(ty, gpid))
+        },
+        Type::Paren(TypeParen { elem, .. })
+            | Type::Array(TypeArray { elem, .. }) 
+            | Type::Slice(TypeSlice { elem, ..  })
+            | Type::Reference(TypeReference { elem, ..  }) 
+        => {
+            contains_generic_param(elem.as_ref(), gpid)
+        },
+        _ => false,
+    }
 }

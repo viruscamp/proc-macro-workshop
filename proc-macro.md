@@ -76,3 +76,82 @@
         proc_macro::TokenStream::from(expanded)
     }
     ```
+## Tips
+### 模式匹配
+- `dbg!(attr)` 获取语法树结构，稍微改动即可作为模式匹配
+- 解构简化取值，不包括 enum 的可以用
+    ```rust
+        let Field { ident, ty, attrs, .. } = f;
+        for Attribute { meta, .. } in attrs {}
+    ```
+- `#![feature(let_chains)]` 简化多层 if let
+    ```rust
+        if let Some(TokenTree::Ident(id)) = tokens_iter.next()
+            && id == attr_id_bound
+            && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
+            && punct_eq.as_char() == '='
+            && let Some(bound_val) = tokens_iter.next()                
+    ```
+
+### 建议结构
+收集 修改 展开
+```rust
+let mut errors = vec![];
+let mut debug_bounds = vec![];
+let Mut field_methods = vec![];
+
+// 收集 循环 attrs fields 等, 插入 errors debug_bounds 等
+
+// 修改 在循环内修改 where_clause 等会有所有权问题
+let where_clause = input.generics.make_where_clause();
+where_clause.predicates.extend(debug_bounds.iter().filter_map(|s|{
+    match syn::parse_str::<WherePredicate>(&s.value()) {
+        Ok(wp) => Some(wp),
+        Err(err) => { errors.push(err); None },
+    }
+}));
+
+// 展开
+let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+let errors = errors.iter().map(Error::to_compile_error);
+let expand = quote! {
+    #(#errors)*
+    impl #impl_generics ::core::fmt::Debug for #struct_name #ty_generics
+        #where_clause {
+            #(#field_methods)*,
+    }
+};
+```
+
+### syn & quote
+- 生成的代码尽量使用 `::core::option::Option`
+- quote 中动态字符串， 带""的字符串
+    ```rust
+    let field_name = "abc";
+    let fmt_str: LitStr = ..; // quote 中带引号展开
+    // stringify!(#field_name) 是在生成之后，编译代码时展开的
+    quote! {
+        .field(stringify!(#field_name), &format_args!(#fmt_str, &self.#field_name))
+    }
+    ```
+- `Path` is `Ident`
+    ```rust
+        let attr_id_debug = format_ident!("builder");
+        ...
+        if let Meta::NameValue(MetaNameValue {
+                path,
+                ..
+            }) = &attr.meta
+            && path.is_ident(&attr_id_debug)
+    ```
+- `TypePath` 尤其是有 qself 的
+    - `core::fmt::Debug`  qself=None path="core::fmt::Debug"
+    - `<T::Value2 as Trait>::Value`  qself.ty="T::Value2" position=1 path="Trait::Value"
+    - `<Vec<T>>::AssociatedItem<X>`  qself.ty="Vec<T>" position=0 path="AssociatedItem<X>"
+- `Attribute::Meta`
+    ```rust
+    for Attribute { meta, .. } in attrs {
+        //Meta::Path: `#[abc::def]`
+        //Meta::List: `#[derive(Copy, Clone)]` `#[debug(bound = "T::Value: Debug")]`
+        //Meta::NameValue: `#[path = "sys/windows.rs"]`
+    ```

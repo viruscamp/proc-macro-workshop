@@ -16,11 +16,11 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut errors = vec![];
     let mut fields_debug = vec![];
 
-    let mut debug_bounds = vec![];
-    fn parse_debug_bounds(attrs: &Vec<Attribute>, debug_bounds: &mut Vec<LitStr>, errors: &mut Vec<Error>)
-        -> i32 {
+    let mut attr_debug_bounds = vec![];
+    fn parse_attr_debug_bounds(attrs: &Vec<Attribute>, debug_bounds: &mut Vec<LitStr>, errors: &mut Vec<Error>)
+        -> usize {
         let mut found = 0;
-        for debug_bound in extract_attrs_debug_bound(attrs) {
+        for debug_bound in extract_attr_debug_bounds(attrs) {
             match debug_bound {
                 Ok(s) => { found +=1 ; debug_bounds.push(s) },
                 Err(err) => errors.push(err),
@@ -28,7 +28,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
         found
     }
-    let disable_inference = parse_debug_bounds(&input.attrs, &mut debug_bounds, &mut errors) > 0;
+    let disable_inference = parse_attr_debug_bounds(&input.attrs, &mut attr_debug_bounds, &mut errors) > 0;
 
     // 方法5 加入 T  X  T::Target T::Target<X>
     let mut path_with_params = HashSet::new();
@@ -41,41 +41,18 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }).collect::<Vec<_>>();
 
     if let Data::Struct(DataStruct {
-        fields: Fields::Named(ref fields),
+        fields: Fields::Named(FieldsNamed { ref named, .. }),
         ..
     }) = input.data
     {
-        for f in &fields.named {
-            let field_name = &f.ident;
-            // find `#[debug = "0b{:08b}"]`
-            if let Some(attr_value) = f.attrs.iter().find_map(|attr| {
-                if let Meta::NameValue(MetaNameValue {
-                        path,
-                        value,
-                        ..
-                    }) = &attr.meta
-                    && let Some(attr_name) = path.get_ident()
-                    && attr_name.to_string() == "debug"
-                {
-                    return Some(value);
-                }
-                return None;
-            }) {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(fmt_str), .. })= attr_value {
-                    fields_debug.push(quote! {
-                        .field(stringify!(#field_name), &format_args!(#fmt_str, &self.#field_name))
-                    });
-                } else {
-                    errors.push(Error::new_spanned(&attr_value, "must be valid format string"));
-                }
-            } else {
-                fields_debug.push(quote! {
-                    .field(stringify!(#field_name), &self.#field_name)
-                });
+        for Field { ident: field_name, ty, attrs, .. } in named {
+            match make_field_debug_from_attr_debug_fmt(attrs, field_name) {
+                Ok(ts) => fields_debug.push(ts),
+                Err(err) => errors.push(err),
             }
-            let disable_inference_field = parse_debug_bounds(&f.attrs, &mut debug_bounds, &mut errors) > 0;       
+            let disable_inference_field = parse_attr_debug_bounds(attrs, &mut attr_debug_bounds, &mut errors) > 0;       
             if !disable_inference && !disable_inference_field {
-                used_generic_param(&f.ty, gpids.as_slice(), &mut path_with_params);
+                used_generic_param(ty, gpids.as_slice(), &mut path_with_params);
             }
          }
     } else {
@@ -91,7 +68,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             Err(err) => { errors.push(err); None },
         }
     }));
-    where_clause.predicates.extend(debug_bounds.iter().filter_map(|s|{
+    where_clause.predicates.extend(attr_debug_bounds.iter().filter_map(|s|{
         match syn::parse_str::<WherePredicate>(&s.value()) {
             Ok(wp) => Some(wp),
             Err(err) => { errors.push(err); None },
@@ -117,9 +94,39 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(expand)
 }
 
-fn extract_attrs_debug_bound(attrs: &Vec<Attribute>) -> Vec<Result<LitStr>> {
-    let attr_id_debug = Ident::new("debug", Span::call_site());
-    let attr_id_bound = Ident::new("bound", Span::call_site());
+// find `#[debug = "0b{:08b}"]`
+// 没有，找到但错误，找到合法的
+fn make_field_debug_from_attr_debug_fmt(attrs: &Vec<Attribute>, field_name: &Option<Ident>) -> Result<TokenStream> {
+    let attr_id_debug = format_ident!("debug");
+    if let Some(attr_value) = attrs.iter().find_map(|attr| {
+        if let Meta::NameValue(MetaNameValue {
+                path,
+                value,
+                ..
+            }) = &attr.meta
+            && path.is_ident(&attr_id_debug)
+        {
+            return Some(value);
+        }
+        return None;
+    }) {
+        if let Expr::Lit(ExprLit { lit: Lit::Str(fmt_str), .. })= attr_value {
+            Ok(quote! {
+                .field(stringify!(#field_name), &format_args!(#fmt_str, &self.#field_name))
+            })
+        } else {
+            Err(Error::new_spanned(&attr_value, "must be valid format string"))
+        }
+    } else {
+        Ok(quote! {
+            .field(stringify!(#field_name), &self.#field_name)
+        })
+    }
+}
+
+fn extract_attr_debug_bounds(attrs: &Vec<Attribute>) -> Vec<Result<LitStr>> {
+    let attr_id_debug = format_ident!("debug");
+    let attr_id_bound = format_ident!("bound");
 
     let mut bounds = vec![];
     //Meta::Path: `#[abc::def]`

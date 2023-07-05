@@ -1,6 +1,6 @@
 #![feature(let_chains)]
 
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{TokenStream, TokenTree, Span};
 use quote::*;
 use syn::*;
 use mylib_macro::*;
@@ -13,21 +13,19 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let struct_name = &input.ident;
     let struct_builder_name = format_ident!("{struct_name}Builder");
 
-    let mut errors_builder = vec![];
+    let mut errors = vec![];
     let mut fields_builder = vec![];
     let mut methods_builder = vec![];
     let mut build_internal = vec![];
 
+    let attr_id_builder = format_ident!("builder");
+
     if let Data::Struct(DataStruct {
-        fields: Fields::Named(ref fields),
+        fields: Fields::Named(FieldsNamed { ref named, .. }),
         ..
     }) = input.data
     {
-        for f in &fields.named {
-            let Field {
-                ident, ty, attrs, ..
-            } = f;
-
+        for Field { ident, ty, attrs, .. } in named {
             // find `#[builder(..)]`
             if let Some((attr, tokens)) = attrs.iter().find_map(|attr| {
                 if let Meta::List(MetaList {
@@ -35,8 +33,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         tokens,
                         ..
                     }) = &attr.meta
-                    && let Some(id_builder) = path.get_ident()
-                    && id_builder.to_string() == "builder"
+                    && path.is_ident(&attr_id_builder)
                 {
                     return Some((attr, tokens));
                 }
@@ -44,9 +41,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }) {
                 // find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
                 fn get_each_method_name(attr: &Attribute, tokens: &TokenStream) -> Result<Ident> {
+                    let attr_id_each = format_ident!("each");
                     let mut tokens_iter = tokens.to_token_stream().into_iter();
                     if let Some(TokenTree::Ident(id_each)) = tokens_iter.next()
-                        && id_each.to_string() == "each"
+                        && id_each == attr_id_each
                         && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
                         && punct_eq.as_char() == '='
                         && let Some(method_name) = tokens_iter.next()
@@ -54,6 +52,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         if let TokenTree::Literal(method_name) = method_name {
                             if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&method_name.to_string()) {
                                 if let Ok(mut id) = syn::parse_str::<Ident>(&s.value()) {
+                                    // `#[builder(each = "arg")]` 判断了 "arg" 是否有效标识符
                                     id.set_span(method_name.span());
                                     return Ok(id);
                                 } else {
@@ -67,6 +66,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 );
                             }
                         } else if let TokenTree::Ident(method_name) = method_name {
+                            // `#[builder(each = arg)]`
                             return Ok(method_name);
                         } else {
                             return Err(
@@ -82,28 +82,27 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                 match get_each_method_name(attr, tokens) {
                     Ok(each_method_name) => {
-                        if let Some(ty_inner) = is_vec(ty)
-                    {
-                        fields_builder.push(quote! {
-                            #ident: ::std::vec::Vec<#ty_inner>
-                        });
-                        methods_builder.push(quote! {
-                            pub fn #each_method_name(&mut self, v: #ty_inner) -> &mut Self {
-                                self.#ident.push(v);
-                                self
-                            }
-                        });
-                        build_internal.push(quote! {
-                            #ident: ::core::mem::take(&mut self.#ident)
-                        });
-                    } else {
-                        errors_builder.push(
-                            Error::new_spanned(ty, "builder attr each without Vec type")
-                        )
-                    }
+                        if let Some(ty_inner) = is_vec(ty) {
+                            fields_builder.push(quote! {
+                                #ident: ::std::vec::Vec<#ty_inner>
+                            });
+                            methods_builder.push(quote! {
+                                pub fn #each_method_name(&mut self, v: #ty_inner) -> &mut Self {
+                                    self.#ident.push(v);
+                                    self
+                                }
+                            });
+                            build_internal.push(quote! {
+                                #ident: ::core::mem::take(&mut self.#ident)
+                            });
+                        } else {
+                            errors.push(
+                                Error::new_spanned(ty, "builder attr each without Vec type")
+                            )
+                        }
                     },
                     Err(err) => {
-                        errors_builder.push(err);
+                        errors.push(err);
                     },
                 }
             } else if let Some(ty_inner) = is_option(ty) {
@@ -135,10 +134,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     } else {
-        errors_builder.push(Error::new_spanned(&input, "should be struct"));
+        errors.push(Error::new_spanned(&input, "should be struct"));
     }
 
-    let expanded = if errors_builder.is_empty() {
+    let expanded = if errors.is_empty() {
         quote! {
             impl #struct_name {
                 pub fn builder() -> #struct_builder_name {
@@ -162,11 +161,12 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
     } else {
-        let errors_builder = errors_builder.iter().map(Error::to_compile_error);
+        // 一般直接把 errors 放前面就可以
+        // 此处测试 08-unrecognized-attribute.rs 要求报错必须一模一样，所以有错误时不输出 impl
+        let errors = errors.iter().map(Error::to_compile_error);
         quote! {
-            #(#errors_builder)*
+            #(#errors)*
         }
     };
-
     proc_macro::TokenStream::from(expanded)
 }

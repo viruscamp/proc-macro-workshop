@@ -62,6 +62,8 @@ fn builder() {
 }
 
 fn debug() {
+    fn assert_debug<F: ::core::fmt::Debug>() {}
+
     use derive_debug::CustomDebug;
 
     #[derive(CustomDebug)]
@@ -150,4 +152,47 @@ fn debug() {
         one: Box<One<T>>,
     }
     //Two [(Some(Ident { ident: "T", span: #0 bytes(3580..3581) }), true)]
+
+
+    // 07-associated-type
+    pub trait Trait {
+        type Value;
+    }
+    
+    #[derive(CustomDebug)]
+    pub struct Field7<T: Trait> {
+        values: Vec<T::Value>,
+    }
+
+    struct Id;
+
+    let x = Id;
+    let px = &x as *const Id;
+    dbg!(px);
+
+    impl Trait for Id {
+        type Value = u8;
+    }
+
+    assert_debug::<Field7<Id>>();
+
+    pub trait Trait71 {
+        type Value;
+        type Value2: Trait;
+        type Value3<X>;
+    }
+    impl Trait71 for u32 {
+        type Value = i32;
+        type Value2 = Id;
+        type Value3<X> = Box<X>;
+    }
+    #[derive(CustomDebug)]
+    pub struct Field71<T: Trait71, X> {
+        values: Vec<T::Value>,
+        v2: <T::Value2 as Trait>::Value,
+        v3: T::Value3<i16>,
+        v4: T::Value3<X>,
+        v5: Box<T::Value3<i16>>,
+    }
+    assert_debug::<Field71<u32, ()>>();
 }

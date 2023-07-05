@@ -1,5 +1,7 @@
 #![feature(let_chains)]
 
+use std::collections::HashSet;
+
 use proc_macro2::*;
 use syn::*;
 use quote::*;
@@ -14,12 +16,13 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut errors = vec![];
     let mut fields_debug = vec![];
 
-    // 方法4 检查每个泛型参数是否在field中使用，Phantom<T> 不算使用, Box<Option<T>> 算
-    let mut generics_params_used = input.generics.params.iter().map(|gp| {
+    // 方法5 加入 T  X  T::Target T::Target<X>
+    let mut path_with_params = HashSet::new();
+    let gpids = input.generics.params.iter().filter_map(|gp| {
         if let GenericParam::Type(TypeParam { ident, ..   }) = gp {
-            (Some(ident.clone()), false)
+            Some(ident)
         } else {
-            (None, false)
+            None
         }
     }).collect::<Vec<_>>();
 
@@ -57,31 +60,18 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     .field(stringify!(#field_name), &self.#field_name)
                 });
             }
-            let fty = &f.ty;
-            generics_params_used.iter_mut()
-            .filter(|(_, used)| !used)
-            .for_each(|(id, used)| {
-                if let Some(id) = id
-                    && contains_generic_param(fty, id) {
-                    *used = true
-                }
-            });
-        }
+            used_generic_param(&f.ty, gpids.as_slice(), &mut path_with_params); 
+         }
     } else {
         errors.push(Error::new_spanned(&input.ident, "should be struct"));
     }
 
-    //eprintln!("{struct_name} {generics_params_used:?}");
-    let debug_trait_bound = syn::parse2::<TypeParamBound>(quote!{
-        ::core::fmt::Debug
-    }).unwrap();
-    for (idx, gp) in input.generics.params.iter_mut().enumerate() {
-        if let GenericParam::Type(tp) = gp 
-            && generics_params_used[idx].1
-        {
-            tp.bounds.extend(Some(debug_trait_bound.clone()));
-        }
-    }
+    let mut where_clause = input.generics.make_where_clause();
+    where_clause.predicates.extend(path_with_params.iter().map(|p| {
+        syn::parse2::<WherePredicate>(quote!{
+            #p: ::core::fmt::Debug
+        }).unwrap()
+    }));
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 

@@ -195,4 +195,64 @@ fn debug() {
         v5: Box<T::Value3<i16>>,
     }
     assert_debug::<Field71<u32, ()>>();
+
+    // 08-escape-hatch
+    {
+        use std::fmt::Debug;
+
+        pub trait Trait {
+            type Value;
+        }
+        
+        #[derive(CustomDebug)]
+        #[debug(bound = "T::Value: Debug")]
+        pub struct Wrapper<T: Trait> {
+            field: Field<T>,
+        }
+        
+        #[derive(CustomDebug)]
+        struct Field<T: Trait> {
+            values: Vec<T::Value>,
+        }
+        
+        fn assert_debug<F: ::core::fmt::Debug>() {}
+
+        struct Id;
+
+        impl Trait for Id {
+            type Value = u8;
+        }
+    
+        assert_debug::<Wrapper<Id>>();
+    }
+
+    {
+        use std::fmt::Debug;
+        
+        pub trait Trait {
+            type Value;
+        }
+        
+        #[derive(CustomDebug)]
+        pub struct Wrapper<T: Trait> {
+            #[debug(bound = "T::Value: Debug")]
+            field: Field<T>,
+            field2: Vec<T>,
+        }
+        
+        #[derive(CustomDebug)]
+        struct Field<T: Trait> {
+            values: Vec<T::Value>,
+        }
+        
+        fn assert_debug<F: ::core::fmt::Debug>() {}
+
+        struct Id;
+
+        impl Trait for Id {
+            type Value = u8;
+        }
+    
+        assert_debug::<Wrapper<Id>>();
+    }
 }

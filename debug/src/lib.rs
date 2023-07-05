@@ -16,6 +16,20 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut errors = vec![];
     let mut fields_debug = vec![];
 
+    let mut debug_bounds = vec![];
+    fn parse_debug_bounds(attrs: &Vec<Attribute>, debug_bounds: &mut Vec<LitStr>, errors: &mut Vec<Error>)
+        -> i32 {
+        let mut found = 0;
+        for debug_bound in extract_attrs_debug_bound(attrs) {
+            match debug_bound {
+                Ok(s) => { found +=1 ; debug_bounds.push(s) },
+                Err(err) => errors.push(err),
+            }
+        }
+        found
+    }
+    let disable_inference = parse_debug_bounds(&input.attrs, &mut debug_bounds, &mut errors) > 0;
+
     // 方法5 加入 T  X  T::Target T::Target<X>
     let mut path_with_params = HashSet::new();
     let gpids = input.generics.params.iter().filter_map(|gp| {
@@ -32,7 +46,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }) = input.data
     {
         for f in &fields.named {
-
             let field_name = &f.ident;
             // find `#[debug = "0b{:08b}"]`
             if let Some(attr_value) = f.attrs.iter().find_map(|attr| {
@@ -60,17 +73,29 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     .field(stringify!(#field_name), &self.#field_name)
                 });
             }
-            used_generic_param(&f.ty, gpids.as_slice(), &mut path_with_params); 
+            let disable_inference_field = parse_debug_bounds(&f.attrs, &mut debug_bounds, &mut errors) > 0;       
+            if !disable_inference && !disable_inference_field {
+                used_generic_param(&f.ty, gpids.as_slice(), &mut path_with_params);
+            }
          }
     } else {
         errors.push(Error::new_spanned(&input.ident, "should be struct"));
     }
 
-    let mut where_clause = input.generics.make_where_clause();
-    where_clause.predicates.extend(path_with_params.iter().map(|p| {
-        syn::parse2::<WherePredicate>(quote!{
+    let where_clause = input.generics.make_where_clause();
+    where_clause.predicates.extend(path_with_params.iter().filter_map(|p| {
+        match syn::parse2::<WherePredicate>(quote!{
             #p: ::core::fmt::Debug
-        }).unwrap()
+        }) {
+            Ok(wp) => Some(wp),
+            Err(err) => { errors.push(err); None },
+        }
+    }));
+    where_clause.predicates.extend(debug_bounds.iter().filter_map(|s|{
+        match syn::parse_str::<WherePredicate>(&s.value()) {
+            Ok(wp) => Some(wp),
+            Err(err) => { errors.push(err); None },
+        }
     }));
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -92,54 +117,41 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(expand)
 }
 
-/// 方法1 `where T: Debug`<br/>
-/// 可能做出 `where T: Copy, T: Debug`
-fn where_bound_generic(generics: &mut Generics) {
-    let tpidents: Vec<_> = generics.params.iter().filter_map(|p| {
-        if let GenericParam::Type(tp) = p {
-            Some(tp.ident.clone())
-        } else {
-            None
-        }
-    }).collect();
-    let where_clause = generics.make_where_clause();
-    for tpident in tpidents {
-        let debug_trait_bound = syn::parse2::<WherePredicate>(quote!{
-            #tpident: ::core::fmt::Debug
-        }).unwrap();
-        where_clause.predicates.extend(Some(debug_trait_bound))
-    }
-}
+fn extract_attrs_debug_bound(attrs: &Vec<Attribute>) -> Vec<Result<LitStr>> {
+    let attr_id_debug = Ident::new("debug", Span::call_site());
+    let attr_id_bound = Ident::new("bound", Span::call_site());
 
-/// 方法2 给 `GenericParam` 加 `Debug` 限制<br/>
-/// `struct Field042<T: Clone, X> where X: Sized {}`<br/>
-/// `impl<T: Clone + Debug, X: Debug> Debug for Field042<T,X> where X: Sized {}`  
-fn params_bound_generic(generics: &mut Generics) {
-    for p in generics.params.iter_mut() {
-        if let GenericParam::Type(tp) = p {
-            let debug_trait_bound = syn::parse2::<TypeParamBound>(quote!{
-                ::core::fmt::Debug
-            }).unwrap();
-            tp.bounds.extend(Some(debug_trait_bound));
+    let mut bounds = vec![];
+    //Meta::Path: `#[abc::def]`
+    //Meta::List: `#[derive(Copy, Clone)]` `#[debug(bound = "T::Value: Debug")]`
+    //Meta::NameValue: `#[path = "sys/windows.rs"]`
+    for Attribute { meta, .. } in attrs {
+        if let Meta::List(MetaList { path, tokens, .. }) = meta
+            && path.is_ident(&attr_id_debug)
+        {
+            let mut tokens_iter = tokens.to_token_stream().into_iter();
+            if let Some(TokenTree::Ident(id)) = tokens_iter.next()
+                && id == attr_id_bound
+                && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
+                && punct_eq.as_char() == '='
+                && let Some(bound_val) = tokens_iter.next()
+            {
+                if let TokenTree::Literal(bound_val) = bound_val {
+                    // must be a str "abc" ""
+                    if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&bound_val.to_string()) {
+                        bounds.push(Ok(s));
+                    } else {
+                        bounds.push(Err(
+                            Error::new_spanned(bound_val, "must be a string")
+                        ));
+                    }
+                } else {
+                    bounds.push(Err(
+                        Error::new_spanned(bound_val, "nmust be string")
+                    ));
+                }            
+            }
         }
     }
-}
-
-/// 方法3 加 `FieldType: Debug` 到 where<br/>
-/// `struct Field042<T: Clone, X> where X: Sized {}`<br/>
-/// ```rust ignore
-/// impl<T: Clone, X> Debug for Field042<T,X>
-///     where X: Sized
-///         Phantom<T>: Debug,
-///         i32: Debug,
-///         T: Debug,
-///         T: Debug,
-/// {}
-/// ```
-fn where_bound_field(where_clause: &mut WhereClause, f: &Field) {
-    let field_type = &f.ty;
-    let field_debug_where = syn::parse2::<WherePredicate>(quote!{
-        #field_type: ::core::fmt::Debug
-    }).unwrap();
-    where_clause.predicates.extend(Some(field_debug_where));
+    return bounds;
 }

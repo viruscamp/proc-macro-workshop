@@ -256,3 +256,11 @@ fn debug() {
         assert_debug::<Wrapper<Id>>();
     }
 }
+
+fn seq1() {
+    use seq::seq;
+
+    seq!(N in 0..8 {
+        // nothing
+    });
+}

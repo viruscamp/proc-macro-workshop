@@ -66,14 +66,12 @@
         let struct_builder_name = format_ident!("{struct_name}Builder");
 
         // 输出
-        let expanded = quote! {
+        quote! {
             #vis struct #struct_builder_name {
             }
             impl #struct_name {
             }
-        }
-
-        proc_macro::TokenStream::from(expanded)
+        }.into()
     }
     ```
 ## Tips

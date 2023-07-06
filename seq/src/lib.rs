@@ -31,15 +31,17 @@ impl Parse for Seq {
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, to, body } = parse_macro_input!(input as Seq);
-    //let range = [from..to];
-    //let replaceby = from;
-    let output = replace_ident(body.stream(), &name, &from.to_token_stream());
-    quote! {
-        #output
-    }.into()
+    let from = from.base10_parse::<i32>().unwrap();
+    let to = to.base10_parse::<i32>().unwrap();
+    let mut outputs = vec![];
+    for toreplace in from..to {
+        let toreplace = LitInt::new(&toreplace.to_string(), Span::call_site());
+        let output = replace_ident(body.stream(), &name, &toreplace.to_token_stream());
+        outputs.push(output);
+    }
+    TokenStream::from_iter(outputs).into()
 }
 
-// wrong and useless
 fn replace_ident(
     input: TokenStream,
     toreplace: &Ident,

@@ -50,20 +50,16 @@ fn replace_ident(
     let mut output = TokenStream::new();
     for t in input.into_iter() {
         match t {
-            TokenTree::Ident(id) => {
-                if &id == toreplace {
+            TokenTree::Ident(id) if &id == toreplace => {
                     output.append_all(replaceby.clone().into_iter())
-                } else {
-                    output.append(id)
-                }
             },
             TokenTree::Group(g) => {
                 let group_inner = replace_ident(g.stream(), toreplace, replaceby);
-                let g = Group::new(g.delimiter(), group_inner);
-                output.append(g)
+                let mut g_new = Group::new(g.delimiter(), group_inner);
+                g_new.set_span(g.span());
+                output.append(g_new)
             },
-            TokenTree::Punct(pt) => output.append(pt),
-            TokenTree::Literal(lit) => output.append(lit)
+            other => output.append(other),
         }
     }
     output

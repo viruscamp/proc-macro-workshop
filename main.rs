@@ -286,3 +286,21 @@ fn seq3() {
         compile_error!(concat!("error number ", stringify!(N)));
     });
 }
+
+fn seq4() {
+    use seq::seq;
+
+    seq!(N in 1..4 {
+        fn f~N () -> u64 {
+            N * 2
+        }
+    });
+
+    fn f0() -> u64 {
+        100
+    }
+
+    let sum = f0() + f1() + f2() + f3();
+    assert_eq!(sum, 100 + 2 + 4 + 6);
+
+}

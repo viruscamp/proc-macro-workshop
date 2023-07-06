@@ -458,3 +458,15 @@ fn sorted2() {
         None => todo!(),
     }
 }
+
+fn sorted3() {
+    use sorted::sorted;
+
+    #[sorted]
+    pub enum Error {
+        ThatFailed,
+        ThisFailed,
+        SomethingFailed,
+        WhoKnowsWhatFailed,
+    }
+}

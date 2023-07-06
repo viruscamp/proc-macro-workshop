@@ -1,6 +1,7 @@
 #![feature(let_chains)]
 
 use std::collections::VecDeque;
+use std::ops::{Deref, DerefMut, Range};
 
 use proc_macro2::*;
 use syn::*;
@@ -35,13 +36,54 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, to, body } = parse_macro_input!(input as Seq);
     let from = from.base10_parse::<i32>().unwrap();
     let to = to.base10_parse::<i32>().unwrap();
-    let mut outputs = vec![];
-    for toreplace in from..to {
-        let toreplace = LitInt::new(&toreplace.to_string(), Span::call_site());
-        let output = replace_ident(body.stream(), &name, &toreplace.to_token_stream());
-        outputs.push(output);
+
+    let (output, has_section) = repeat_section(body.stream(), &name, from..to);
+    if has_section {
+        output.into()
+    } else {
+        let mut output = TokenStream::new();
+        for replaceby in from..to {
+            let replaceby = LitInt::new(&replaceby.to_string(), Span::call_site());
+            output.extend(replace_ident(body.stream(), &name, &replaceby.to_token_stream()));
+        }
+        output.into()
     }
-    TokenStream::from_iter(outputs).into()
+}
+
+struct PushBackIterator<T, ITER: Iterator<Item = T>> {
+    vec_deque: VecDeque<T>,
+    iter: ITER,
+}
+impl<T, ITER: Iterator<Item = T>> PushBackIterator<T, ITER> {
+    pub fn new(iter: ITER) -> Self {
+        Self {
+            vec_deque: VecDeque::new(),
+            iter
+        }
+    }
+}
+impl<T, ITER: Iterator<Item = T>> Deref for PushBackIterator<T, ITER> {
+    type Target = VecDeque<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.vec_deque
+    }
+}
+impl<T, ITER: Iterator<Item = T>> DerefMut for PushBackIterator<T, ITER> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vec_deque
+    }
+}
+impl<T, ITER: Iterator<Item = T>> Iterator for PushBackIterator<T, ITER> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(tt) = self.vec_deque.pop_front() {
+            Some(tt)
+        } else if let Some(tt) = self.iter.next() {
+            Some(tt)
+        } else {
+            None
+        }
+    }
 }
 
 fn replace_ident(
@@ -50,19 +92,8 @@ fn replace_ident(
     replaceby: &TokenStream
 ) -> TokenStream {
     let mut output = TokenStream::new();
-    let mut input = input.into_iter();
-    let mut unprocessed = VecDeque::new();
-    fn read_one(vec: &mut VecDeque<TokenTree>, iter: &mut impl Iterator<Item = TokenTree>)
-        -> Option<TokenTree> {
-            if let Some(tt) = vec.pop_front() {
-                Some(tt)
-            } else if let Some(tt) = iter.next() {
-                Some(tt)
-            } else {
-                None
-            }
-    }
-    while let Some(t) = read_one(&mut unprocessed, &mut input) {
+    let mut input = PushBackIterator::new(input.into_iter());
+    while let Some(t) = input.next() {
         match t {
             TokenTree::Ident(id) => {
                 if &id == toreplace {
@@ -70,10 +101,10 @@ fn replace_ident(
                     //eprintln!("IN => 1 {id:?}");
                     output.append_all(replaceby.clone().into_iter())
                 } else {
-                    let t1 = read_one(&mut unprocessed, &mut input);
-                    let t2 = read_one(&mut unprocessed, &mut input);
-                    let t3 = read_one(&mut unprocessed, &mut input);
-                    let t4 = read_one(&mut unprocessed, &mut input);
+                    let t1 = input.next();
+                    let t2 = input.next();
+                    let t3 = input.next();
+                    let t4 = input.next();
                     if let Some(TokenTree::Punct(ref punct)) = t1
                         && punct.as_char() == '~'
                         && let Some(TokenTree::Ident(ref idn)) = t2
@@ -92,17 +123,17 @@ fn replace_ident(
                             //eprintln!("IId~IN => Id1 {id:?}{replaceby:?}");
                             let id = format_ident!("{id}{replaceby}");
                             output.append(id);
-                            unprocessed.extend(t3);
-                            unprocessed.extend(t4);
+                            input.extend(t3);
+                            input.extend(t4);
                         }
                     } else {
                         // Id
                         //eprintln!("Id => Id {id:?} push_back 4 [{t1:?} {t2:?} {t3:?} {t4:?}]");
                         output.append(id);
-                        unprocessed.extend(t1);
-                        unprocessed.extend(t2);
-                        unprocessed.extend(t3);
-                        unprocessed.extend(t4);
+                        input.extend(t1);
+                        input.extend(t2);
+                        input.extend(t3);
+                        input.extend(t4);
                     }
                 }
             },
@@ -116,4 +147,50 @@ fn replace_ident(
         }
     }
     output
+}
+
+fn repeat_section(
+    input: TokenStream,
+    toreplace: &Ident,
+    range: Range<i32>,
+) -> (TokenStream, bool) {
+    let mut has_section = false;
+    let mut output = TokenStream::new();
+    let mut input = PushBackIterator::new(input.into_iter());
+    while let Some(t) = input.next() {
+        match t {
+            TokenTree::Punct(punct) => {
+                if punct.as_char() == '#' {
+                    let t1 = input.next();
+                    let t2 = input.next();
+                    if let Some(TokenTree::Group(ref g)) = t1
+                        && g.delimiter() == Delimiter::Parenthesis
+                        && let Some(TokenTree::Punct(ref punct)) = t2
+                        && punct.as_char() == '*'
+                    {
+                        has_section = true;
+                        for replaceby in range.clone().into_iter() {
+                            let replaceby = LitInt::new(&replaceby.to_string(), Span::call_site());
+                            output.extend(replace_ident(g.stream(), toreplace, &replaceby.to_token_stream()));
+                        }
+                    } else {
+                        output.append(punct);
+                        input.extend(t1);
+                        input.extend(t2);
+                    }
+                } else {
+                    output.append(punct);
+                }
+            },
+            TokenTree::Group(g) => {
+                let (group_inner, has_section_group) = repeat_section(g.stream(), toreplace, range.clone());
+                has_section |= has_section_group;
+                let mut g_new = Group::new(g.delimiter(), group_inner);
+                g_new.set_span(g.span());
+                output.append(g_new)
+            },
+            other => output.append(other),
+        }
+    }
+    (output, has_section)
 }

@@ -302,5 +302,22 @@ fn seq4() {
 
     let sum = f0() + f1() + f2() + f3();
     assert_eq!(sum, 100 + 2 + 4 + 6);
+}
 
+fn seq5() {
+    use seq::seq;
+
+    seq!(N in 0..16 {
+        #[derive(Copy, Clone, PartialEq, Debug)]
+        enum Interrupt {
+            #(
+                Irq~N,
+            )*
+        }
+    });
+
+    let interrupt = Interrupt::Irq8;
+
+    assert_eq!(interrupt as u8, 8);
+    assert_eq!(interrupt, Interrupt::Irq8);
 }

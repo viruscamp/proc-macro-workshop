@@ -419,3 +419,16 @@ fn seq9() {
     // Expands to: `static PROCS: [Proc; NPROC] = [Proc::new(), ..., Proc::new()];`
     static PROCS: [Proc; NPROC] = pass_nproc!(make_procs_array);
 }
+
+fn sorted1() {
+    use sorted::sorted;
+    
+    #[sorted]
+    pub enum Conference {
+        RustBeltRust,
+        RustConf,
+        RustFest,
+        RustLatam,
+        RustRush,
+    }
+}

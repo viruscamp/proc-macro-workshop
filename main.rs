@@ -369,3 +369,13 @@ fn seq7() {
 
     assert_eq!(desc, "min");
 }
+
+fn seq8() {
+    use seq::seq;
+
+    seq!(N in 0..1 {
+        fn main() {
+            let _ = Missing~N;
+        }
+    });
+}

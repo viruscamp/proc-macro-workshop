@@ -131,13 +131,15 @@ fn replace_ident(
                         {
                             //Id~IN~id => Id1id
                             //eprintln!("Id~IN~id => Id1id {id:?}{replaceby:?}{postfix:?}");
-                            let id = format_ident!("{id}{replaceby}{postfix}");
-                            output.append(id);
+                            let mut newid = format_ident!("{id}{replaceby}{postfix}");
+                            newid.set_span(id.span());
+                            output.append(newid);
                         } else {
                             //Id~IN => Id1
                             //eprintln!("IId~IN => Id1 {id:?}{replaceby:?}");
-                            let id = format_ident!("{id}{replaceby}");
-                            output.append(id);
+                            let mut newid = format_ident!("{id}{replaceby}");
+                            newid.set_span(id.span());
+                            output.append(newid);
                             input.extend(t3);
                             input.extend(t4);
                         }

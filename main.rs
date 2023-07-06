@@ -321,3 +321,29 @@ fn seq5() {
     assert_eq!(interrupt as u8, 8);
     assert_eq!(interrupt, Interrupt::Irq8);
 }
+
+fn seq6() {
+    use seq::seq;
+
+    const PROCS: [Proc; 256] = {
+        seq!(N in 0..256 {
+            [
+                #(
+                    Proc::new(N),
+                )*
+            ]
+        })
+    };
+
+    struct Proc {
+        id: usize,
+    }
+
+    impl Proc {
+        const fn new(id: usize) -> Self {
+            Proc { id }
+        }
+    }
+
+    assert_eq!(PROCS[32].id, 32);
+}

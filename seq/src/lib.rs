@@ -11,6 +11,7 @@ use quote::*;
 struct Seq {
     name: Ident,
     from: LitInt,
+    inclusive: bool,
     to: LitInt,
     body: Group,
 }
@@ -19,12 +20,23 @@ impl Parse for Seq {
         let name: Ident = input.parse()?;
         input.parse::<Token![in]>()?;
         let from: LitInt = input.parse()?;
-        input.parse::<Token![..]>()?;
+        
+        let inclusive = if input.peek(Token![..=]) {
+            input.parse::<Token![..=]>()?;
+            true
+        } else if input.peek(Token![..]) {
+            input.parse::<Token![..]>()?;
+            false
+        } else {
+            Err(Error::new(input.span(), "must be .. or ..="))?
+        };
+
         let to: LitInt = input.parse()?;
         let body: Group = input.parse()?;
         Ok(Seq {
             name,
             from,
+            inclusive,
             to,
             body,
         })
@@ -33,9 +45,12 @@ impl Parse for Seq {
 
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let Seq { name, from, to, body } = parse_macro_input!(input as Seq);
+    let Seq { name, from, inclusive, to, body } = parse_macro_input!(input as Seq);
     let from = from.base10_parse::<i32>().unwrap();
-    let to = to.base10_parse::<i32>().unwrap();
+    let mut to = to.base10_parse::<i32>().unwrap();
+    if inclusive {
+        to += 1;
+    }
 
     let (output, has_section) = repeat_section(body.stream(), &name, from..to);
     if has_section {

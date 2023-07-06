@@ -31,7 +31,38 @@ impl Parse for Seq {
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, to, body } = parse_macro_input!(input as Seq);
+    //let range = [from..to];
+    //let replaceby = from;
+    let output = replace_ident(body.stream(), &name, &from.to_token_stream());
     quote! {
-        
+        #output
     }.into()
+}
+
+// wrong and useless
+fn replace_ident(
+    input: TokenStream,
+    toreplace: &Ident,
+    replaceby: &TokenStream
+) -> TokenStream {
+    let mut output = TokenStream::new();
+    for t in input.into_iter() {
+        match t {
+            TokenTree::Ident(id) => {
+                if &id == toreplace {
+                    output.append_all(replaceby.clone().into_iter())
+                } else {
+                    output.append(id)
+                }
+            },
+            TokenTree::Group(g) => {
+                let group_inner = replace_ident(g.stream(), toreplace, replaceby);
+                let g = Group::new(g.delimiter(), group_inner);
+                output.append(g)
+            },
+            TokenTree::Punct(pt) => output.append(pt),
+            TokenTree::Literal(lit) => output.append(lit)
+        }
+    }
+    output
 }

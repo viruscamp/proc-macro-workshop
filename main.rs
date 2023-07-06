@@ -1,3 +1,5 @@
+#![feature(stmt_expr_attributes)]
+
 // Write code here.
 //
 // To see what the code looks like after macro expansion:
@@ -430,5 +432,29 @@ fn sorted1() {
         RustFest,
         RustLatam,
         RustRush,
+    }
+}
+
+fn sorted2() {
+    use sorted::sorted;
+
+    #[sorted]
+    pub struct Error {
+        kind: ErrorKind,
+        message: String,
+    }
+
+    #[sorted]
+    enum ErrorKind {
+        Io,
+        Syntax,
+        Eof,
+    }
+    
+    let x = Some(4);
+    #[sorted]
+    match x {
+        Some(_) => todo!(),
+        None => todo!(),
     }
 }

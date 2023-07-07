@@ -5,6 +5,13 @@ edition = "2021"
 publish = false
 
 [workspace]
+members = ["builder", "debug", "seq", "sorted", "bitfield", "mylib-macro"]
+
+[workspace.dependencies]
+trybuild = { version = "1", features = ["diff"] }
+syn = { version = "2", features = ["extra-traits"]}
+quote = "1"
+proc-macro2 = "1"
 
 [[bin]]
 name = "workshop"

@@ -1,12 +1,13 @@
 #![feature(let_chains)]
 
-use std::collections::VecDeque;
-use std::ops::{Deref, DerefMut, Range};
+use std::ops::RangeInclusive;
 
 use proc_macro2::*;
 use syn::*;
 use syn::parse::*;
 use quote::*;
+
+use mylib_macro::push_back_iter::PushBackIterator;
 
 struct Seq {
     name: Ident,
@@ -48,56 +49,20 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, inclusive, to, body } = parse_macro_input!(input as Seq);
     let from = from.base10_parse::<i32>().unwrap();
     let mut to = to.base10_parse::<i32>().unwrap();
-    if inclusive {
-        to += 1;
+    if !inclusive {
+        to -= 1;
     }
 
-    let (output, has_section) = repeat_section(body.stream(), &name, from..to);
+    let (output, has_section) = repeat_section(body.stream(), &name, from..=to);
     if has_section {
         output.into()
     } else {
         let mut output = TokenStream::new();
-        for replaceby in from..to {
+        for replaceby in from..=to {
             let replaceby = LitInt::new(&replaceby.to_string(), Span::call_site());
             output.extend(replace_ident(body.stream(), &name, &replaceby.to_token_stream()));
         }
         output.into()
-    }
-}
-
-struct PushBackIterator<T, ITER: Iterator<Item = T>> {
-    vec_deque: VecDeque<T>,
-    iter: ITER,
-}
-impl<T, ITER: Iterator<Item = T>> PushBackIterator<T, ITER> {
-    pub fn new(iter: ITER) -> Self {
-        Self {
-            vec_deque: VecDeque::new(),
-            iter
-        }
-    }
-}
-impl<T, ITER: Iterator<Item = T>> Deref for PushBackIterator<T, ITER> {
-    type Target = VecDeque<T>;
-    fn deref(&self) -> &Self::Target {
-        &self.vec_deque
-    }
-}
-impl<T, ITER: Iterator<Item = T>> DerefMut for PushBackIterator<T, ITER> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.vec_deque
-    }
-}
-impl<T, ITER: Iterator<Item = T>> Iterator for PushBackIterator<T, ITER> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(tt) = self.vec_deque.pop_front() {
-            Some(tt)
-        } else if let Some(tt) = self.iter.next() {
-            Some(tt)
-        } else {
-            None
-        }
     }
 }
 
@@ -169,7 +134,7 @@ fn replace_ident(
 fn repeat_section(
     input: TokenStream,
     toreplace: &Ident,
-    range: Range<i32>,
+    range: RangeInclusive<i32>,
 ) -> (TokenStream, bool) {
     let mut has_section = false;
     let mut output = TokenStream::new();

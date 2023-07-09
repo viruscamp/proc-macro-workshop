@@ -123,6 +123,25 @@ let expand = quote! {
 
 ### syn & quote
 - 生成的代码尽量使用 `::core::option::Option`
+- `TokenStream` 非常底层, 同时是输入和输出
+  - 用 `let mut iter = input.into_iter(); for tt in iter {}` 读取, 没有后退功能
+  - `TokenTree` 元素有
+    * `Punct(Punct)` 单字符符号 `+`, `,`, `$`
+    * `Literal(Literal)` 字面量 character (`'a'`), string (`"hello"`), number (`2.3`) 包含后缀 `3.3f64`
+    * `Ident(Ident)` 标识符 `let a: u32`内有3个标识符 包括关键字 `let` `for`, 包括 `true` `false` 关键字标识符 `r#let`
+    * `Group(Group)` 括号包裹的分组, `g.stream()` 获取内部的另一个 `TokenStream`
+      * `( ... )` Parenthesis,
+      * `{ ... }` Brace,
+      * `[ ... ]` Bracket,
+      * 没有 `<>` 尖括号
+  - 有 `.apeend` 和 `.extend` 方法用于在尾部追加
+  - 通常递归处理
+    ```rust
+    let new_inner = process(g.stream());
+    let mut new_group = Group::new(g.delimiter(), group_inner);
+    new_group.set_span(g.span()); // 重要报错时保留来源位置
+    output.append(new_group) // 处理后的输出
+    ```
 - quote 中动态字符串， 带""的字符串
     ```rust
     let field_name = "abc";

@@ -19,3 +19,4 @@ trybuild = { workspace = true, features = ["diff"] }
 proc-macro2 = { workspace = true }
 syn = { workspace = true, features = ["extra-traits"]}
 quote = { workspace = true }
+mylib-macro ={ path = "../mylib-macro" }

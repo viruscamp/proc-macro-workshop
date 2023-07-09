@@ -1,5 +1,7 @@
 #![feature(let_chains)]
 
+pub mod push_back_iter;
+
 use std::collections::HashSet;
 
 use syn::*;
@@ -127,7 +129,7 @@ pub fn used_generic_param<'a, 'b>(ty: &'a Type, gpids: &'b [&'b Ident], path_wit
 {
     match ty {
         Type::Path(TypePath { path, qself }) => {
-            if let Some(qself) = qself {
+            if let Some(_qself) = qself {
                 // <T::Value2 as Trait>::Value  qself.ty="T::Value2" position=1 path="Trait::Value"
                 // <Vec<T>>::AssociatedItem<X>  qself.ty="Vec<T>" position=0 path="AssociatedItem<X>"
                 // TODO 暂时处理不了

@@ -489,3 +489,42 @@ fn sorted4() {
         Dyn(Box<dyn StdError>),
     }
 }
+
+fn sorted5() {
+    use sorted::sorted;
+
+    use std::fmt::{self, Display};
+    use std::io;
+
+    #[sorted]
+    pub enum Error {
+        Fmt(fmt::Error),
+        Io(io::Error),
+    }
+
+    enum T1 {
+        X,Y
+    }
+
+    impl Display for Error {
+        #[sorted::check]
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            use Error::*;
+            use T1::*;
+
+            let t1 = T1::X;
+            #[sorted]
+            match t1 {
+                Y => todo!(),
+                X => todo!(),
+
+            };
+
+            #[sorted]
+            match self {
+                Io(e) => write!(f, "{}", e),
+                Fmt(e) => write!(f, "{}", e),
+            }
+        }
+    }
+}

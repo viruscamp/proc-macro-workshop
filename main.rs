@@ -569,6 +569,11 @@ fn sorted6() {
     // 报错的 Span 指向 Pat 和 Ident 都不符合
     // 必须指向 Path 那么对于 Pat::Ident(PatIdent) 必须构造一个
     // 最后的问题，Path 没有 to_string, 用 quote 有多余的空格
+
+    // Ident: A 有两种可能, 宏内部无法分辨
+    // 1. 变量A匹配任意值
+    // 2. use Test::A; 后就是 Test::A
+    // 有歧义时， rustc 会报 E0170， 但这是在宏处理之后
 }
 
 fn sorted7() {

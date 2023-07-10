@@ -17,6 +17,10 @@ proc-macro2 = "1"
 name = "workshop"
 path = "main.rs"
 
+[[bin]]
+name = "test"
+path = "test.rs"
+
 [dependencies]
 bitfield = { path = "bitfield" }
 derive_builder = { path = "builder" }

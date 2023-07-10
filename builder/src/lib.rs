@@ -1,8 +1,8 @@
 #![feature(let_chains)]
 
-use proc_macro2::{TokenStream, TokenTree, Span};
-use quote::*;
+use proc_macro2::*;
 use syn::*;
+use quote::*;
 use mylib_macro::*;
 
 #[proc_macro_derive(Builder, attributes(builder))]
@@ -39,47 +39,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
                 return None;
             }) {
-                // find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
-                fn get_each_method_name(attr: &Attribute, tokens: &TokenStream) -> Result<Ident> {
-                    let attr_id_each = format_ident!("each");
-                    let mut tokens_iter = tokens.to_token_stream().into_iter();
-                    if let Some(TokenTree::Ident(id_each)) = tokens_iter.next()
-                        && id_each == attr_id_each
-                        && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
-                        && punct_eq.as_char() == '='
-                        && let Some(method_name) = tokens_iter.next()
-                    {
-                        if let TokenTree::Literal(method_name) = method_name {
-                            if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&method_name.to_string()) {
-                                if let Ok(mut id) = syn::parse_str::<Ident>(&s.value()) {
-                                    // `#[builder(each = "arg")]` 判断了 "arg" 是否有效标识符
-                                    id.set_span(method_name.span());
-                                    return Ok(id);
-                                } else {
-                                    return Err(
-                                        Error::new_spanned(method_name, "not a valid ident")
-                                    );
-                                }
-                            } else {
-                                return Err(
-                                    Error::new_spanned(method_name, "lit is not str")
-                                );
-                            }
-                        } else if let TokenTree::Ident(method_name) = method_name {
-                            // `#[builder(each = arg)]`
-                            return Ok(method_name);
-                        } else {
-                            return Err(
-                                Error::new_spanned(method_name, "not lit str nor ident")
-                            )
-                        }
-                    } else {
-                        return Err(
-                            Error::new_spanned(&attr.meta, "expected `builder(each = \"...\")`")
-                        )
-                    }
-                }
-
                 match get_each_method_name(attr, tokens) {
                     Ok(each_method_name) => {
                         if let Some(ty_inner) = is_vec(ty) {
@@ -169,4 +128,104 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
     proc_macro::TokenStream::from(expanded)
+}
+
+// find `#[builder(each = "arg")] args: Vec<String>`, `#[builder(each = arg)]`
+fn get_each_method_name(attr: &Attribute, tokens: &TokenStream) -> Result<Ident> {
+    let attr_id_each = format_ident!("each");
+    let mut tokens_iter = tokens.to_token_stream().into_iter();
+    if let Some(TokenTree::Ident(id_each)) = tokens_iter.next()
+        && id_each == attr_id_each
+        && let Some(TokenTree::Punct(punct_eq)) = tokens_iter.next()
+        && punct_eq.as_char() == '='
+        && let Some(method_name) = tokens_iter.next()
+    {
+        if let TokenTree::Literal(method_name) = method_name {
+            if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&method_name.to_string()) {
+                if let Ok(mut id) = syn::parse_str::<Ident>(&s.value()) {
+                    // `#[builder(each = "arg")]` 判断了 "arg" 是否有效标识符
+                    id.set_span(method_name.span());
+                    return Ok(id);
+                } else {
+                    return Err(
+                        Error::new_spanned(method_name, "not a valid ident")
+                    );
+                }
+            } else {
+                return Err(
+                    Error::new_spanned(method_name, "lit is not str")
+                );
+            }
+        } else if let TokenTree::Ident(method_name) = method_name {
+            // `#[builder(each = arg)]`
+            return Ok(method_name);
+        } else {
+            return Err(
+                Error::new_spanned(method_name, "not lit str nor ident")
+            )
+        }
+    } else {
+        return Err(
+            Error::new_spanned(&attr.meta, "expected `builder(each = \"...\")`")
+        )
+    }
+}
+
+# [allow (dead_code)]
+mod showcase {
+    //#[derive(Builder)]
+    pub struct Command {
+        executable: String,
+        vec_option: Vec<i32>,
+        current_dir: Option<String>,
+        //#[builder(each = "arg")]
+        args: Vec<String>,
+        //#[builder(each = env)]
+        env: Vec<String>,
+    }
+
+    impl Command {
+        pub fn builder() -> CommandBuilder {
+            <CommandBuilder as ::core::default::Default>::default()
+        }
+    }
+    #[derive(Default)]
+    pub struct CommandBuilder {
+        executable: ::core::option::Option<String>,
+        vec_option: ::core::option::Option<Vec<i32>>,
+        current_dir: ::core::option::Option<String>,
+        args: ::std::vec::Vec<String>,
+        env: ::std::vec::Vec<String>,
+    }
+    impl CommandBuilder {
+        pub fn build(&mut self) -> ::core::option::Option<Command> {
+            Some(Command {
+                executable: self.executable.take()?,
+                vec_option: self.vec_option.take()?,
+                current_dir: ::core::mem::take(&mut self.current_dir),
+                args: ::core::mem::take(&mut self.args),
+                env: ::core::mem::take(&mut self.env),
+            })
+        }
+        pub fn executable(&mut self, v: String) -> &mut Self {
+            self.executable = ::core::option::Option::Some(v);
+            self
+        }
+        pub fn vec_option(&mut self, v: Vec<i32>) -> &mut Self {
+            self.vec_option = ::core::option::Option::Some(v);
+            self
+        }
+        pub fn current_dir(&mut self, v: String) -> &mut Self {
+            self.current_dir = ::core::option::Option::Some(v);
+            self
+        }
+        pub fn arg(&mut self, v: String) -> &mut Self {
+            self.args.push(v);
+            self
+        }
+        pub fn env(&mut self, v: String) -> &mut Self {
+            self.env.push(v);
+            self
+        }
+    }
 }

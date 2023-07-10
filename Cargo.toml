@@ -17,7 +17,7 @@ proc-macro2 = "1"
 name = "workshop"
 path = "main.rs"
 
-[[bin]]
+[[test]]
 name = "test"
 path = "test.rs"
 

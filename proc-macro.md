@@ -4,6 +4,7 @@
 - [proc-macro-workshop](https://github.com/dtolnay/proc-macro-workshop)
 - [The Little Book of Rust Macros](https://veykril.github.io/tlborm/introduction.html)
 - [Rust 宏小册](https://zjp-cn.github.io/tlborm/introduction.html)
+- [Rust 学习笔记](https://zjp-cn.github.io/rust-note/index.html)
 
 ## 库
 - [proc-macro](https://doc.rust-lang.org/stable/proc_macro/) 内部结构，仅能用于
@@ -14,9 +15,19 @@
 - [proc-macro2](https://docs.rs/proc-macro2/) 包装 proc-macro 使其可以作为依赖项
 - [syn](https:://docs.rs/syn/) 解析输入
 - [quote](https://docs.rs/quote/) 简化输出
+- [parsel](https://docs.rs/parsel) syn 的高级封装库
 
 ## 调试
 - [cargo expand](https://crates.io/crates/cargo-expand) 展示输出
+- panic 输出
+    ```rust
+    pub fn my_macro(input: TokenStream) -> TokenStream {
+    ...
+    let out: TokenStream = .... ;
+    panic!("{}", out);
+    out
+    }
+    ```
 - stderr 输出
     ```rust
     eprintln!("TOKENS: {}", tokens);
@@ -121,33 +132,36 @@ let expand = quote! {
 };
 ```
 
+### 生成的代码尽量使用无歧义的全名 
+例如 `::core::option::Option`
+### `TokenStream` 非常底层, 同时是输入和输出
+- 用 `let mut iter = input.into_iter(); for tt in iter {}` 读取, 没有后退功能
+- `TokenTree` 元素有
+* `Punct(Punct)` 单字符符号 `+`, `,`, `$`
+* `Literal(Literal)` 字面量 character (`'a'`), string (`"hello"`), number (`2.3`) 包含后缀 `3.3f64`
+* `Ident(Ident)` 标识符 `let a: u32`内有3个标识符 包括关键字 `let` `for`, 包括 `true` `false` 关键字标识符 `r#let`
+* `Group(Group)` 括号包裹的分组, `g.stream()` 获取内部的另一个 `TokenStream`
+    * `( ... )` Parenthesis,
+    * `{ ... }` Brace,
+    * `[ ... ]` Bracket,
+    * 没有 `<>` 尖括号
+- 有 `.apeend` 和 `.extend` 方法用于在尾部追加
+- 通常递归处理
+```rust
+let new_inner = process(g.stream());
+let mut new_group = Group::new(g.delimiter(), group_inner);
+new_group.set_span(g.span()); // 重要报错时保留来源位置
+output.append(new_group) // 处理后的输出
+```
 ### syn & quote
-- 生成的代码尽量使用 `::core::option::Option`
-- `TokenStream` 非常底层, 同时是输入和输出
-  - 用 `let mut iter = input.into_iter(); for tt in iter {}` 读取, 没有后退功能
-  - `TokenTree` 元素有
-    * `Punct(Punct)` 单字符符号 `+`, `,`, `$`
-    * `Literal(Literal)` 字面量 character (`'a'`), string (`"hello"`), number (`2.3`) 包含后缀 `3.3f64`
-    * `Ident(Ident)` 标识符 `let a: u32`内有3个标识符 包括关键字 `let` `for`, 包括 `true` `false` 关键字标识符 `r#let`
-    * `Group(Group)` 括号包裹的分组, `g.stream()` 获取内部的另一个 `TokenStream`
-      * `( ... )` Parenthesis,
-      * `{ ... }` Brace,
-      * `[ ... ]` Bracket,
-      * 没有 `<>` 尖括号
-  - 有 `.apeend` 和 `.extend` 方法用于在尾部追加
-  - 通常递归处理
-    ```rust
-    let new_inner = process(g.stream());
-    let mut new_group = Group::new(g.delimiter(), group_inner);
-    new_group.set_span(g.span()); // 重要报错时保留来源位置
-    output.append(new_group) // 处理后的输出
-    ```
 - quote 中动态字符串， 带""的字符串
     ```rust
-    let field_name = "abc";
-    let fmt_str: LitStr = ..; // quote 中带引号展开
+    let field_name: Ident = format_ident!("abc");
+    let field_name_str = LitStr::new(&field_name.to_string(), field_name.span());
+    let fmt_str: LitStr = ...; // quote 中带引号展开
     // stringify!(#field_name) 是在生成之后，编译代码时展开的
     quote! {
+        .field(#field_name_str, &format_args!(#fmt_str, &self.#field_name))
         .field(stringify!(#field_name), &format_args!(#fmt_str, &self.#field_name))
     }
     ```

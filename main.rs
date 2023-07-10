@@ -570,3 +570,16 @@ fn sorted6() {
     // 必须指向 Path 那么对于 Pat::Ident(PatIdent) 必须构造一个
     // 最后的问题，Path 没有 to_string, 用 quote 有多余的空格
 }
+
+fn sorted7() {
+    #[sorted::check]
+    fn f(bytes: &[u8]) -> Option<u8> {
+        #[sorted]
+        match bytes {
+            [] => Some(0),
+            [a] => Some(*a),
+            [a, b] => Some(a + b),
+            _other => None,
+        }
+    }
+}

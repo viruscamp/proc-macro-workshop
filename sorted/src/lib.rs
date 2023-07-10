@@ -165,6 +165,12 @@ fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
                 ));
             }
             last = Some(cur);
+        } else {
+            errors.push(Error::new(
+                arm.pat.span(),
+                "unsupported by #[sorted]",
+            ));
+            break;
         }
     }
     // TODO check match expr in arms, bodies 

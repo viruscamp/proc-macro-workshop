@@ -145,8 +145,13 @@ fn enum_variant_from_arm(arm: &Arm) -> Option<(&Ident, Path)> {
 }
 
 fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
+    let mut idx_underscore = None;
     let mut last: Option<(&Ident, Path)> = None;
-    for arm in expr_match.arms.iter() {
+    for (idx, arm) in expr_match.arms.iter().enumerate() {
+        if let Pat::Wild(_) = arm.pat {
+            idx_underscore = Some(idx);
+            continue;
+        }
         if let Some(cur) = enum_variant_from_arm(&arm)
         {
             if let Some(ref last) = last
@@ -173,7 +178,15 @@ fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
             break;
         }
     }
-    // TODO check match expr in arms, bodies 
+    if let Some(idx_underscore) = idx_underscore
+        && idx_underscore < expr_match.arms.len() - 1
+    {
+        errors.push(Error::new(
+            Span::call_site(),
+            "_ should be last",
+        ));
+    }
+    // TODO check match expr in arms, bodies
 }
 
 fn check_sorted_item_enum(enum_item: &ItemEnum, errors: &mut Vec<Error>) {

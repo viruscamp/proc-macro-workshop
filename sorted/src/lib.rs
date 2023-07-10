@@ -4,6 +4,7 @@ use proc_macro2::*;
 use syn::*;
 use syn::parse::{ParseStream, Parse, discouraged::Speculative};
 use quote::*;
+use syn::spanned::Spanned;
 
 #[proc_macro_attribute]
 pub fn sorted(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -127,42 +128,41 @@ fn process_tokens(tokens: impl Iterator<Item = TokenTree>, output: &mut TokenStr
     Ok(())
 }
 
-fn enum_variant_from_arm(arm: &Arm) -> Option<&Ident> {
+fn enum_variant_from_arm(arm: &Arm) -> Option<(&Ident, Path)> {
     if let Pat::Ident(PatIdent { ident: cur, .. }) = &arm.pat
     {
-        Some(cur)
+        let path = Path::from(cur.clone());
+        Some((cur, path))
     } else if let Pat::Path(PatPath { qself: None, path, .. })
         | Pat::TupleStruct(PatTupleStruct { qself: None, path, .. })
         = &arm.pat
         && let Some(ps) = path.segments.last()
     {
-        Some(&ps.ident)
+        Some((&ps.ident, path.clone()))
     } else {
         None
     }
 }
 
 fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
-    let mut last: Option<&Ident> = None;
+    let mut last: Option<(&Ident, Path)> = None;
     for arm in expr_match.arms.iter() {
         if let Some(cur) = enum_variant_from_arm(&arm)
         {
-            if let Some(last) = last
-                && last.cmp(cur).is_ge()
+            if let Some(ref last) = last
+                && last.0.cmp(cur.0).is_ge()
             {
                 let pos = expr_match.arms.iter()
-                    .filter_map(|v| {
-                        if let Pat::Path(PatPath { qself: None, path, .. }) = &v.pat
-                            && let Some(cur) = path.get_ident()
-                        {
-                            Some(cur)
-                        } else {
-                            None
-                        }
-                    })
-                    .find(|vi| cur.cmp(vi).is_le())
-                    .unwrap_or(last); 
-                errors.push(Error::new(cur.span(), format!("{} should sort before {}", cur, pos)));
+                    .filter_map(enum_variant_from_arm)
+                    .find(|vi| cur.0.cmp(vi.0).is_le())
+                    .unwrap_or(last.clone());
+                let cur_path = &cur.1;
+                let pos_path = &pos.1;
+                errors.push(Error::new(
+                    cur.1.span(),
+                    & quote!(#cur_path should sort before #pos_path).to_string(),
+                    //format!("{} should sort before {}", cur.1, pos.1)
+                ));
             }
             last = Some(cur);
         }

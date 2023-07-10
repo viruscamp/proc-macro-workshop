@@ -515,9 +515,8 @@ fn sorted5() {
             let t1 = T1::X;
             #[sorted]
             match t1 {
-                Y => todo!(),
-                X => todo!(),
-
+                Y => 3,
+                X => 4,
             };
 
             #[sorted]
@@ -527,4 +526,47 @@ fn sorted5() {
             }
         }
     }
+}
+
+fn sorted6() {
+    use sorted::sorted;
+
+    use std::fmt::{self, Display};
+    use std::io;
+    
+    #[sorted]
+    pub enum Error {
+        Fmt(fmt::Error),
+        Io(io::Error),
+    }
+    
+    impl Display for Error {
+        #[sorted::check]
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            #[sorted]
+            match self {
+                Error::Io(e) => write!(f, "{}", e),
+                Error::Fmt(e) => write!(f, "{}", e),
+            }
+        }
+    }
+
+    enum Test {
+        A,
+        B,
+        C(i32),
+    }
+    use Test::*;
+    let a = Test::A;
+    match a {
+        A => 1, // Pat::Ident(PatIdent) 没有 Path
+        Test::B => 2, // Pat::Path(PatPath) 有 Path 
+        Test::C(x) => x, // Pat::TupleStruct(PatTupleStruct) 有 Path
+    };
+    // Pat: Test::C(x)
+    // Path: Test::C
+    // Ident: C
+    // 报错的 Span 指向 Pat 和 Ident 都不符合
+    // 必须指向 Path 那么对于 Pat::Ident(PatIdent) 必须构造一个
+    // 最后的问题，Path 没有 to_string, 用 quote 有多余的空格
 }

@@ -14,8 +14,4 @@ trybuild = { workspace = true, features = ["diff"] }
 
 [dependencies]
 bitfield-impl = { path = "impl" }
-
-proc-macro2 = { workspace = true }
-syn = { workspace = true, features = ["extra-traits"]}
-quote = { workspace = true }
-mylib-macro = { path = "../mylib-macro" }
+seq-macro = "*"

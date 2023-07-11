@@ -8,4 +8,8 @@ publish = false
 proc-macro = true
 
 [dependencies]
-# TODO
+proc-macro2 = { workspace = true }
+syn = { workspace = true, features = ["full", "extra-traits"]}
+quote = { workspace = true }
+mylib-macro = { path = "../../mylib-macro" }
+

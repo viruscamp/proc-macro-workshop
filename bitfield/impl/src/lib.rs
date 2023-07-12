@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 
+use proc_macro2::Span;
 //use proc_macro2::*;
 use syn::{*, spanned::Spanned};
 use quote::*;
@@ -94,7 +95,11 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
         }
 
         let variants_len = variants_ident.len();
-        bits_u64(variants_len as u64)
+        let bits = bits_u64(variants_len as u64);
+        if (1 << bits) != variants_len {
+            errors.push(Error::new(Span::call_site(), "BitfieldSpecifier expected a number of variants which is a power of 2"));
+        }
+        bits
     } else {
         errors.push(Error::new(enum_name.span(), "must be an enum"));
         1

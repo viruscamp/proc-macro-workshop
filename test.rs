@@ -1,3 +1,7 @@
+fn main() {
+    println!("should compile");
+}
+
 #[test]
 fn test() {
     println!("test");

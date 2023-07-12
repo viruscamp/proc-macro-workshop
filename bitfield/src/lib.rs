@@ -15,35 +15,50 @@ use seq_macro::seq;
 
 pub trait Specifier {
     const BITS: u32;
+    type Inner;
 }
 
+pub struct B<U, const N: usize>(U);
+
 seq!(N in 1..=8 {
-    pub struct B~N(u8);
+    pub type B~N = B<u8, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
+        type Inner = u8;
     }
 });
 
 seq!(N in 9..=16 {
-    pub struct B~N(u16);
+    pub type B~N = B<u16, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
+        type Inner = u16;
     }
 });
 
 seq!(N in 17..=32 {
-    pub struct B~N(u32);
+    pub type B~N = B<u32, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
+        type Inner = u32;
     }
 });
 
 seq!(N in 33..=64 {
-    pub struct B~N(u64);
+    pub type B~N = B<u64, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
+        type Inner = u64;
     }
 });
+
+pub const fn bits_size_to_byte_size(bits_size: usize) -> usize {
+    (bits_size + (u8::BITS as usize) - 1) / (u8::BITS as usize)
+}
+
+pub fn get_generic<const S: usize, const F: usize, const L: usize>(a: &[u8; S]) -> u64 {
+    get::<S>(a, F, L)
+}
 
 pub fn get<const S: usize>(a: &[u8; S], from: usize, bits: usize) -> u64 {
     let mut out = 0u64;
@@ -70,6 +85,10 @@ pub fn get<const S: usize>(a: &[u8; S], from: usize, bits: usize) -> u64 {
     out
 }
 
+pub fn set_generic<const S: usize, const F: usize, const L: usize>(a: &mut [u8; S], v: u64) {
+    set::<S>(a, v, F, L)
+}
+
 pub fn set<const S: usize>(a: &mut [u8; S], v: u64, from: usize, bits: usize) {
     let mut idx_bits = from;
     let mut left_bits = bits;
@@ -89,5 +108,11 @@ pub fn set<const S: usize>(a: &mut [u8; S], v: u64, from: usize, bits: usize) {
         idx_bits += len_bits;
         left_bits -= len_bits;
         pos_bits = 0;
+    }
+}
+
+pub mod checks {
+    pub trait TotalSizeIsMultipleOfEightBits {
+        const SIZE: usize = 8;
     }
 }

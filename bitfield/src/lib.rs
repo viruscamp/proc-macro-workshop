@@ -11,11 +11,29 @@
 // From the perspective of a user of this crate, they get all the necessary APIs
 // (macro, trait, struct) through the one bitfield crate.
 pub use bitfield_impl::bitfield;
+pub use bitfield_impl::BitfieldSpecifier;
 use seq_macro::seq;
 
 pub trait Specifier {
     const BITS: u32;
-    type Inner;
+    type Value;
+    fn get(u: u64) -> Self::Value;
+    fn set(v: Self::Value) -> u64;
+}
+
+impl Specifier for bool {
+    const BITS: u32 = 1;
+    type Value = bool;
+    fn get(u: u64) -> bool {
+        u == 1
+    }
+    fn set(v: bool) -> u64 {
+        if v {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 pub struct B<U, const N: usize>(U);
@@ -24,7 +42,13 @@ seq!(N in 1..=8 {
     pub type B~N = B<u8, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
-        type Inner = u8;
+        type Value = u8;
+        fn get(u: u64) -> Self::Value {
+            u as Self::Value
+        }
+        fn set(v: Self::Value) -> u64 {
+            v as u64
+        }
     }
 });
 
@@ -32,7 +56,13 @@ seq!(N in 9..=16 {
     pub type B~N = B<u16, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
-        type Inner = u16;
+        type Value = u16;
+        fn get(u: u64) -> Self::Value {
+            u as Self::Value
+        }
+        fn set(v: Self::Value) -> u64 {
+            v as u64
+        }
     }
 });
 
@@ -40,7 +70,13 @@ seq!(N in 17..=32 {
     pub type B~N = B<u32, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
-        type Inner = u32;
+        type Value = u32;
+        fn get(u: u64) -> Self::Value {
+            u as Self::Value
+        }
+        fn set(v: Self::Value) -> u64 {
+            v as u64
+        }
     }
 });
 
@@ -48,7 +84,13 @@ seq!(N in 33..=64 {
     pub type B~N = B<u64, N>;
     impl Specifier for B~N {
         const BITS: u32 = N;
-        type Inner = u64;
+        type Value = u64;
+        fn get(u: u64) -> Self::Value {
+            u as Self::Value
+        }
+        fn set(v: Self::Value) -> u64 {
+            v as u64
+        }
     }
 });
 

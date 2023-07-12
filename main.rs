@@ -623,7 +623,7 @@ fn sorted8() {
     }
 }
 
-fn bitfield2() {
+fn bitfield() {
     use bitfield::*;
     #[bitfield]
     pub struct MyFourBytes {
@@ -633,7 +633,22 @@ fn bitfield2() {
         d: B24,
     }
 
+    // bitfield/tests/01-specifier-types.rs
     assert_eq!(std::mem::size_of::<MyFourBytes>(), 4);
 
+    // bitfield/tests/02-storage.rs
     assert_eq!(<B24 as Specifier>::BITS, 24);
+
+    // bitfield/tests/03-accessors.rs
+    let mut bitfield = MyFourBytes::new();
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(0, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
+
+    bitfield.set_c(14);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
 }

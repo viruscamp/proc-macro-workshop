@@ -44,3 +44,50 @@ seq!(N in 33..=64 {
         const BITS: u32 = N;
     }
 });
+
+pub fn get<const S: usize>(a: &[u8; S], from: usize, bits: usize) -> u64 {
+    let mut out = 0u64;
+    let mut idx_bits = from;
+    let mut left_bits = bits;
+    let mut pos_bits = idx_bits % 8;
+    while left_bits > 0 {
+        let mut len_bits = (u8::BITS as usize) - pos_bits;
+        if len_bits > left_bits {
+            len_bits = left_bits;
+        }
+        let idx_bytes: usize = idx_bits / 8;
+
+        //let b = (a[idx_bytes] >> pos_bits) & !(0xffu8 << len_bits); // len_bits == 8 cause panic
+        let b = (a[idx_bytes] >> pos_bits) & !(0xffu8.overflowing_shl(len_bits as u32).0);
+
+        out |= (b as u64) << (bits - left_bits); // LSB
+        //out |= (b as u64) << (left_bits - len_bits); // MSB
+
+        idx_bits += len_bits;
+        left_bits -= len_bits;
+        pos_bits = 0;
+    }
+    out
+}
+
+pub fn set<const S: usize>(a: &mut [u8; S], v: u64, from: usize, bits: usize) {
+    let mut idx_bits = from;
+    let mut left_bits = bits;
+    let mut pos_bits = idx_bits % 8;
+    while left_bits > 0 {
+        let mut len_bits = (u8::BITS as usize) - pos_bits;
+        if len_bits > left_bits {
+            len_bits = left_bits;
+        }
+        let idx_bytes: usize = idx_bits / 8;
+
+        let b = v >> (bits - left_bits) & !(0xff << len_bits); // LSB
+        //let b = v >> (left_bits - len_bits) & !(0xff << len_bits); // MSB
+
+        a[idx_bytes] |= (b as u8) << pos_bits;
+
+        idx_bits += len_bits;
+        left_bits -= len_bits;
+        pos_bits = 0;
+    }
+}

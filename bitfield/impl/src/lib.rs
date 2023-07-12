@@ -1,6 +1,6 @@
 #![feature(let_chains)]
 
-use proc_macro2::*;
+//use proc_macro2::*;
 use syn::{*, spanned::Spanned};
 use quote::*;
 
@@ -39,7 +39,7 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let (impl_generics, types, where_clause) = item_struct.generics.split_for_impl();
     let errors = errors.iter().map(Error::to_compile_error);
     
-    let a = quote! {
+    quote! {
         #(#errors)*
 
         #[repr(C)]
@@ -48,9 +48,17 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
         {
             data: [u8; Self::BYTES],
         }
+        mod checks {
+            // 重定义名称 实际上无用，强制报错时使用类型全名
+            trait TotalSizeIsMultipleOfEightBits {}
+            struct SevenMod8;
+            struct ZeroMod8;
 
-        //const _: usize = <#name_struct as ::bitfield::checks::TotalSizeIsMultipleOfEightBits>::SIZE;
-
+            const _: usize = < 
+                <[u8; super::#name_struct::BITS % 8] as ::bitfield::checks::CheckSizeMod8>::SizeMod8
+                as ::bitfield::checks::TotalSizeIsMultipleOfEightBits
+                >::SIZE;
+        }
         impl #impl_generics #name_struct #types
             #where_clause
         {
@@ -62,7 +70,5 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
             #(#field_methods)*
         }
-    };
-eprintln!("{}", a.to_string());
-    a.into()
+    }.into()
 }

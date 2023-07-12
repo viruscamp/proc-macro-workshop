@@ -115,4 +115,46 @@ pub mod checks {
     pub trait TotalSizeIsMultipleOfEightBits {
         const SIZE: usize = 8;
     }
+
+    pub struct SevenMod8;
+    pub struct SixMod8;
+    pub struct FiveMod8;
+    pub struct FourMod8;
+    pub struct ThreeMod8;
+    pub struct TwoMod8;
+    pub struct OneMod8;
+
+    pub struct ZeroMod8;
+    impl TotalSizeIsMultipleOfEightBits for ZeroMod8 {
+        const SIZE: usize = 0;
+    }
+
+    pub trait CheckSizeMod8 {
+        type SizeMod8;
+    }
+
+    impl CheckSizeMod8 for [u8; 0] {
+        type SizeMod8 = ZeroMod8;
+    }
+    impl CheckSizeMod8 for [u8; 1] {
+        type SizeMod8 = OneMod8;
+    }
+    impl CheckSizeMod8 for [u8; 2] {
+        type SizeMod8 = TwoMod8;
+    }
+    impl CheckSizeMod8 for [u8; 3] {
+        type SizeMod8 = ThreeMod8;
+    }
+    impl CheckSizeMod8 for [u8; 4] {
+        type SizeMod8 = FourMod8;
+    }
+    impl CheckSizeMod8 for [u8; 5] {
+        type SizeMod8 = FiveMod8;
+    }
+    impl CheckSizeMod8 for [u8; 6] {
+        type SizeMod8 = SixMod8;
+    }
+    impl CheckSizeMod8 for [u8; 7] {
+        type SizeMod8 = SevenMod8;
+    }
 }

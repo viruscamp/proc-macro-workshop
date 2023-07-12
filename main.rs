@@ -652,3 +652,20 @@ fn bitfield() {
     assert_eq!(14, bitfield.get_c());
     assert_eq!(0, bitfield.get_d());
 }
+
+fn bitfield4() {
+    use bitfield::*;
+
+    type A = B1;
+    type B = B3;
+    type C = B4;
+    type D = B23;
+
+    #[bitfield]
+    pub struct NotQuiteFourBytes {
+        a: A,
+        b: B,
+        c: C,
+        d: D,
+    }
+}

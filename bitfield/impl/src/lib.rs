@@ -81,23 +81,19 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
     let enum_name = &input.ident;
     let enum_def = &input.data;
 
-    let mut variants = vec![];
     let mut variants_ident = vec![];
-    let mut variants_values = vec![];
     let mut errors = vec![];
 
     let bits = if let Data::Enum(enum_def) = enum_def {
         for v in &enum_def.variants {
-            if let Some(d) = &v.discriminant {
-                variants.push((&v.ident, &d.1));
+            if v.fields.len() == 0 {
                 variants_ident.push(&v.ident);
-                variants_values.push(&d.1);
             } else {
-                errors.push(Error::new(v.ident.span(), "must be a discriminant (A = 3)"));
+                errors.push(Error::new(v.ident.span(), "type fails"));
             }
         }
 
-        let variants_len = enum_def.variants.len();
+        let variants_len = variants_ident.len();
         bits_u64(variants_len as u64)
     } else {
         errors.push(Error::new(enum_name.span(), "must be an enum"));
@@ -106,37 +102,38 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
 
     let errors = errors.iter().map(Error::to_compile_error);
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    quote! {
+    let output = quote! {
         #(#errors)*
         impl #impl_generics ::bitfield::Specifier for #enum_name #type_generics #where_clause {
             const BITS: u32 = #bits;
             type Value = Self;
             fn get(u: u64) -> Self {
-                <Self as TryFrom<u64>>::try_from(u).unwrap()
+                Self::try_from_u64(u).unwrap()
             }
             fn set(v: Self) -> u64 {
-                v.into()
+                Self::into_u64(v)
             }
         }
 
-        impl #impl_generics ::core::convert::From<#enum_name #type_generics> for u64  #where_clause {
-            fn from(e: #enum_name #type_generics) -> u64 {
-                match e {
-                    #( #enum_name::#variants_ident => #variants_values, )*
-                }
+        impl #impl_generics #enum_name #type_generics #where_clause {
+            fn into_u64(e: #enum_name #type_generics) -> u64 {
+                e as u64
             }
-        }
 
-        impl #impl_generics ::core::convert::TryFrom<u64> for #enum_name #type_generics #where_clause {
-            type Error = ();
-            fn try_from(u: u64) -> std::result::Result<Self, Self::Error> {
-                match u {
-                    #( #variants_values => ::core::result::Result::Ok(#enum_name::#variants_ident), )*
-                    _ => ::core::result::Result::Err(())
+            fn try_from_u64(u: u64) -> std::result::Result<Self, ()> {
+                #(
+                    if u == (#enum_name::#variants_ident as u64) {
+                        ::core::result::Result::Ok(#enum_name::#variants_ident)
+                    }
+                )else*
+                else {
+                    ::core::result::Result::Err(())
                 }
             }
         }
-    }.into()
+    };
+    //eprintln!("{}", output.to_string());
+    output.into()
 }
 
 fn bits_u64(v: u64) -> u32 {

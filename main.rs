@@ -701,3 +701,28 @@ fn bitfield6() {
 
     let a = DeliveryMode::Fixed.
 }
+
+fn bitfield7() {
+    use bitfield::*;
+
+    #[bitfield]
+    pub struct RedirectionTableEntry {
+        delivery_mode: DeliveryMode,
+        reserved: B5,
+    }
+    
+    const F: isize = 3;
+    const G: isize = 0;
+    
+    #[derive(BitfieldSpecifier, Debug, PartialEq)]
+    pub enum DeliveryMode {
+        Fixed = F,
+        Lowest,
+        SMI,
+        RemoteRead,
+        NMI,
+        Init = G,
+        Startup,
+        External,
+    }
+}

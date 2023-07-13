@@ -14,9 +14,10 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let mut errors: Vec<Error> = vec![];
     let mut field_methods = vec![];
+    let mut field_checks = vec![];
 
     let mut vec_bits = vec![quote!(0)];
-    for Field { ty, ident, ..} in &item_struct.fields {
+    for Field { ty, ident, attrs,..} in &item_struct.fields {
         if let Some(name_field) = ident
         {
             let generics_const = quote!(::<{ Self::BYTES }, { ( #(#vec_bits)+* ) as usize }, { <#ty as ::bitfield::Specifier>::BITS as usize }>);
@@ -34,6 +35,25 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
                 }
             });
             vec_bits.push(quote!(<#ty as ::bitfield::Specifier>::BITS));
+
+            // find #[bits = 9]
+            let id_bits = format_ident!("bits");
+            for attr in attrs {
+                if let Meta::NameValue(
+                        MetaNameValue { path, value, .. }
+                    ) = &attr.meta
+                    && path.is_ident(&id_bits)
+                {
+                    if let Expr::Lit(ExprLit { lit: Lit::Int(bits), ..}) = value
+                    {
+                        field_checks.push(quote_spanned ! { bits.span() =>
+                            const _: [u8; #bits as usize] = [0; #ty::BITS as usize];
+                        });
+                    } else {
+                        errors.push(Error::new(value.span(), "invalid, must be an int which > 0"));
+                    }
+                }
+            }
         } else {
             errors.push(Error::new(ty.span(), "unknown type"));
         }
@@ -65,8 +85,8 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
                     >::Target
                         as ::bitfield::checks::TotalSizeIsMultipleOfEightBits
                 >::SIZE;
-            ()
         };
+        #(#field_checks)*
 
         impl #impl_generics #name_struct #types
             #where_clause

@@ -104,18 +104,18 @@ pub fn get_generic<const S: usize, const F: usize, const L: usize>(a: &[u8; S]) 
 
 pub fn get<const S: usize>(a: &[u8; S], from: usize, bits: usize) -> u64 {
     let mut out = 0u64;
-    let mut idx_bits = from;
-    let mut left_bits = bits;
+    let bits = bits as u32;
+    let mut idx_bits = from as u32;
+    let mut left_bits = bits as u32;
     let mut pos_bits = idx_bits % 8;
     while left_bits > 0 {
-        let mut len_bits = (u8::BITS as usize) - pos_bits;
+        let mut len_bits = u8::BITS - pos_bits;
         if len_bits > left_bits {
             len_bits = left_bits;
         }
-        let idx_bytes: usize = idx_bits / 8;
+        let idx_bytes = idx_bits as usize / 8;
 
-        //let b = (a[idx_bytes] >> pos_bits) & !(0xffu8 << len_bits); // len_bits == 8 cause panic
-        let b = (a[idx_bytes] >> pos_bits) & !(0xffu8.overflowing_shl(len_bits as u32).0);
+        let b = mask_get(a[idx_bytes], len_bits, pos_bits);
 
         out |= (b as u64) << (bits - left_bits); // LSB
         //out |= (b as u64) << (left_bits - len_bits); // MSB
@@ -132,25 +132,53 @@ pub fn set_generic<const S: usize, const F: usize, const L: usize>(a: &mut [u8; 
 }
 
 pub fn set<const S: usize>(a: &mut [u8; S], v: u64, from: usize, bits: usize) {
-    let mut idx_bits = from;
-    let mut left_bits = bits;
+    let bits = bits as u32;
+    let mut idx_bits = from as u32;
+    let mut left_bits = bits as u32;
     let mut pos_bits = idx_bits % 8;
     while left_bits > 0 {
-        let mut len_bits = (u8::BITS as usize) - pos_bits;
+        let mut len_bits = u8::BITS - pos_bits;
         if len_bits > left_bits {
             len_bits = left_bits;
         }
-        let idx_bytes: usize = idx_bits / 8;
+        let idx_bytes = idx_bits as usize / 8;
 
         let b = v >> (bits - left_bits) & !(0xff << len_bits); // LSB
         //let b = v >> (left_bits - len_bits) & !(0xff << len_bits); // MSB
 
-        a[idx_bytes] |= (b as u8) << pos_bits;
+        a[idx_bytes] = mask_set_unchecked(a[idx_bytes], b as u8, len_bits, pos_bits);
 
         idx_bits += len_bits;
         left_bits -= len_bits;
         pos_bits = 0;
     }
+}
+
+///11000001  pos=1, len=5
+const fn mask_neg(len: u32, pos: u32) -> u8 {
+    assert!(len + pos <= u8::BITS);
+    if len == 8 {
+        0x00u8
+    } else {
+        0xffu8 << len
+    }.rotate_left(pos)
+}
+
+///00111110  pos=1, len=5
+const fn mask(len: u32, pos: u32) -> u8 {
+    !mask_neg(len, pos)
+}
+
+const fn mask_get(d: u8, len: u32, pos: u32) -> u8 {
+    (d & mask(len, pos)) >> pos
+}
+
+const fn mask_set(d: u8, v: u8, len: u32, pos: u32) -> u8 {
+    d & mask_neg(len, pos) | ( (v & mask(len, 0)) << pos )
+}
+
+const fn mask_set_unchecked(d: u8, v: u8, len: u32, pos: u32) -> u8 {
+    d & mask_neg(len, pos) | (v << pos )
 }
 
 pub mod checks {

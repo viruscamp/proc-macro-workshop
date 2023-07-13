@@ -41,7 +41,7 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let (impl_generics, types, where_clause) = item_struct.generics.split_for_impl();
     let errors = errors.iter().map(Error::to_compile_error);
-    
+ 
     quote! {
         #(#errors)*
 
@@ -51,17 +51,23 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
         {
             data: [u8; Self::BYTES],
         }
-        mod checks {
+
+        const _: () = {
             // 重定义名称 实际上无用，强制报错时使用类型全名
             trait TotalSizeIsMultipleOfEightBits {}
             struct SevenMod8;
             struct ZeroMod8;
-
-            const _: usize = < 
-                <[u8; super::#name_struct::BITS % 8] as ::bitfield::checks::CheckSizeMod8>::SizeMod8
-                as ::bitfield::checks::TotalSizeIsMultipleOfEightBits
+            const _: usize =
+                <
+                    <
+                        [u8; #name_struct::BITS % 8]
+                            as ::bitfield::checks::CheckSizeMod8
+                    >::Target
+                        as ::bitfield::checks::TotalSizeIsMultipleOfEightBits
                 >::SIZE;
-        }
+            ()
+        };
+
         impl #impl_generics #name_struct #types
             #where_clause
         {
@@ -104,9 +110,25 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
         errors.push(Error::new(enum_name.span(), "must be an enum"));
         1
     };
-
+    let variants_len = variants_ident.len();
     let errors = errors.iter().map(Error::to_compile_error);
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    
+    let variant_checks = variants_ident.iter().map(|vi| {
+        let vi_span = syn::spanned::Spanned::span(&vi);
+        quote_spanned! { vi_span =>
+            const _: bool =
+                <
+                    <
+                        ::bitfield::checks::StaticBoolean<
+                            {(#enum_name::#vi as usize) < #variants_len}
+                        > as ::bitfield::checks::BooleanTarget
+                    >::Target
+                        as ::bitfield::checks::DiscriminantInRange
+                >::VALUE;
+        }
+    });
+    
     let output = quote! {
         #(#errors)*
         impl #impl_generics ::bitfield::Specifier for #enum_name #type_generics #where_clause {
@@ -136,7 +158,16 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
                 }
             }
         }
+
+        const _: () = {
+            struct False;
+            struct True;
+            trait DiscriminantInRange {}
+            #(#variant_checks)*
+            ()
+        };
     };
+
     //eprintln!("{}", output.to_string());
     output.into()
 }

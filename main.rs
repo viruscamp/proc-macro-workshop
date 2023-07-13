@@ -726,3 +726,32 @@ fn bitfield7() {
         External,
     }
 }
+
+fn bitfield8() {
+    use bitfield::*;
+
+    #[derive(BitfieldSpecifier)]
+    pub enum Bad {
+        Zero,
+        One,
+        Two,
+    }
+}
+
+fn bitfield9() {
+    use bitfield::*;
+
+    const F: isize = 1;
+
+    #[derive(BitfieldSpecifier)]
+    pub enum DeliveryMode {
+        Fixed = F,
+        Lowest,
+        SMI,
+        RemoteRead,
+        NMI,
+        Init,
+        Startup,
+        External,
+    }
+}

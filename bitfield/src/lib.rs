@@ -167,36 +167,54 @@ pub mod checks {
     pub struct OneMod8;
 
     pub struct ZeroMod8;
-    impl TotalSizeIsMultipleOfEightBits for ZeroMod8 {
-        const SIZE: usize = 0;
-    }
+    impl TotalSizeIsMultipleOfEightBits for ZeroMod8 {}
 
     pub trait CheckSizeMod8 {
-        type SizeMod8;
+        type Target;
     }
 
     impl CheckSizeMod8 for [u8; 0] {
-        type SizeMod8 = ZeroMod8;
+        type Target = ZeroMod8;
     }
     impl CheckSizeMod8 for [u8; 1] {
-        type SizeMod8 = OneMod8;
+        type Target = OneMod8;
     }
     impl CheckSizeMod8 for [u8; 2] {
-        type SizeMod8 = TwoMod8;
+        type Target = TwoMod8;
     }
     impl CheckSizeMod8 for [u8; 3] {
-        type SizeMod8 = ThreeMod8;
+        type Target = ThreeMod8;
     }
     impl CheckSizeMod8 for [u8; 4] {
-        type SizeMod8 = FourMod8;
+        type Target = FourMod8;
     }
     impl CheckSizeMod8 for [u8; 5] {
-        type SizeMod8 = FiveMod8;
+        type Target = FiveMod8;
     }
     impl CheckSizeMod8 for [u8; 6] {
-        type SizeMod8 = SixMod8;
+        type Target = SixMod8;
     }
     impl CheckSizeMod8 for [u8; 7] {
-        type SizeMod8 = SevenMod8;
+        type Target = SevenMod8;
+    }
+
+    pub struct True;
+
+    pub struct False;
+
+    pub trait DiscriminantInRange {
+        const VALUE: bool = true;
+    }
+    impl DiscriminantInRange for True {}
+
+    pub struct StaticBoolean<const B: bool>;
+    pub trait BooleanTarget {
+        type Target;
+    }
+    impl BooleanTarget for StaticBoolean<true> {
+        type Target = True;
+    }
+    impl BooleanTarget for StaticBoolean<false> {
+        type Target = False;
     }
 }

@@ -72,19 +72,38 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
             data: [u8; Self::BYTES],
         }
 
-        const _: () = {
-            // 重定义名称 实际上无用，强制报错时使用类型全名
+        const _: () = {            
+            // 方案1，来自 static_assertions
+            // 报错信息不够明确
+            //const _: [(); 0 - !{ const ASSERT: bool = $x; ASSERT } as usize] = [];
+            //const _: [(); (#name_struct::BITS % 8 as usize)] = [];
+
+            /*
+            // 推荐方案
+            // 1. const fn 替代关联常量, 少一个 as， 报错多一段指向 check 函数
+            //   函数必须是 const
+            //   不能放在 trait 里面，因为无法标记 const
+            //   只能提供类型， 不要求提供值， 即不能作为参数，也不能用常量赋值
+            // 2. 直接用 [u8; 0] 而不是再找到 ZeroMod8, 再少一个 as, 报错的类型不同
+            const _: () = {
+                const fn check<T: ::bitfield::checks::TotalSizeIsMultipleOfEightBits>() {}
+                check::<[u8; #name_struct::BITS % 8]>();
+            };
+            */
+
+            // workgrounds
+            // 1. 强制报错时使用类型全名
             trait TotalSizeIsMultipleOfEightBits {}
             struct SevenMod8;
             struct ZeroMod8;
-            const _: usize =
+            const _: () =
                 <
                     <
                         [u8; #name_struct::BITS % 8]
                             as ::bitfield::checks::CheckSizeMod8
-                    >::Target
+                    >::Target // 2. 多一次类型转换 [u8; 0] --> ZeroMod8
                         as ::bitfield::checks::TotalSizeIsMultipleOfEightBits
-                >::SIZE;
+                >::CHECK_CONST; // 3. 多一个关联常量， 多一个 as
         };
         #(#field_checks)*
 
@@ -137,15 +156,26 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
     let variant_checks = variants_ident.iter().map(|vi| {
         let vi_span = syn::spanned::Spanned::span(&vi);
         quote_spanned! { vi_span =>
-            const _: bool =
+            //const _: [(); 0 - !{(#enum_name::#vi as usize) < #variants_len} as usize] = [];
+            /*
+            const _: () = {
+                const fn check<T: ::bitfield::checks::DiscriminantInRange>() {}
+                check::<
+                    ::bitfield::checks::StaticBool<
+                        { (#enum_name::#vi as usize) < #variants_len }
+                    >
+                >();
+            };
+            */
+            const _: () =
                 <
                     <
-                        ::bitfield::checks::StaticBoolean<
+                        ::bitfield::checks::StaticBool<
                             {(#enum_name::#vi as usize) < #variants_len}
-                        > as ::bitfield::checks::BooleanTarget
+                        > as ::bitfield::checks::BoolTarget
                     >::Target
                         as ::bitfield::checks::DiscriminantInRange
-                >::VALUE;
+                >::CHECK_CONST;
         }
     });
     

@@ -183,7 +183,7 @@ const fn mask_set_unchecked(d: u8, v: u8, len: u32, pos: u32) -> u8 {
 
 pub mod checks {
     pub trait TotalSizeIsMultipleOfEightBits {
-        const SIZE: usize = 8;
+        const CHECK_CONST: () = ();
     }
 
     pub struct SevenMod8;
@@ -196,6 +196,7 @@ pub mod checks {
 
     pub struct ZeroMod8;
     impl TotalSizeIsMultipleOfEightBits for ZeroMod8 {}
+    //impl TotalSizeIsMultipleOfEightBits for [u8; 0] {}
 
     pub trait CheckSizeMod8 {
         type Target;
@@ -231,18 +232,19 @@ pub mod checks {
     pub struct False;
 
     pub trait DiscriminantInRange {
-        const VALUE: bool = true;
+        const CHECK_CONST: () = ();
     }
     impl DiscriminantInRange for True {}
+    //impl DiscriminantInRange for StaticBool<true> {}
 
-    pub struct StaticBoolean<const B: bool>;
-    pub trait BooleanTarget {
+    pub struct StaticBool<const B: bool>;
+    pub trait BoolTarget {
         type Target;
     }
-    impl BooleanTarget for StaticBoolean<true> {
+    impl BoolTarget for StaticBool<true> {
         type Target = True;
     }
-    impl BooleanTarget for StaticBoolean<false> {
+    impl BoolTarget for StaticBool<false> {
         type Target = False;
     }
 }

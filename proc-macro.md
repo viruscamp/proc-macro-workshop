@@ -195,6 +195,9 @@ output.append(new_group) // 处理后的输出
 --(一对一)--> 常数泛型类型/常数对应类型  
 --(部分实现`判断条件trait`)--> `as 判断条件trait`  
 ```rust
+// 最简单,只能判断正整数类型
+const _: [(); #A as usize] = [(); #B as usize];
+
 // 常数泛型类型， 推荐用法
 struct StaticBool<const B: bool>;
 // 常数对应类型， 不推荐
@@ -219,7 +222,7 @@ impl StaticBoolTarget for StaticBool<false> {
 
 // 判断条件trait
 trait ShouldAbc {
-    const VALUE: () = ();
+    const CHECK_CONST: () = ();
 }
 // 部分实现判断条件trait, 通常只实现 True 就可以
 impl ShouldAbc for True {}
@@ -227,6 +230,21 @@ impl ShouldAbc for StaticBool<true> {}
 
 // const _ 技巧
 const _: () = {
+    // 本质上是在报错时用 ShouldAbc 这样的 trait 名称来作为错误信息
+    // 最好用 quote_spanned!{} 来提供一个错误来源
+
+    // 推荐方案
+    // 1. const fn 替代关联常量, 少一个 as， 报错多一段指向 check 函数
+    //   函数必须是 const
+    //   不能放在 trait 里面，因为无法标记 const
+    //   只能提供类型， 不要求提供值， 即不能作为参数，也不能用常量赋值
+    // 2. 直接用 [u8; 0]/StaticBool<true> 而不是再找到 ZeroMod8/True, 再少一个 as, 报错的类型不同
+    fn check<T: ShouldAbc>() {}
+    check::<StaticBool<{ UserType::SIZE > (UserType::Varian1 as usize) }> >();
+
+    // static_assertion 类似方案，报错不明确，不推荐
+    const _: [(); 0 - !{ UserType::SIZE > (UserType::Varian1 as usize) } as usize] = [];
+
     const _: () =
         <
             <
@@ -235,14 +253,7 @@ const _: () = {
                 > as StaticBoolTarget
             >::Target // 常数泛型类型 --> 常数对应类型, 需要 `as StaticBooleanTarget`
                 as ShouldAbc // `as 判断条件trait`, 实际的编译器判断发生在此处
-        >::VALUE; // 为构成合法语句, 还是要调用关联函数或取值关联常数
-    const _: () =
-        <
-            StaticBool< // 常数泛型类型
-                    { UserType::SIZE > (UserType::Varian1 as usize) } // 编译期常数(i32/enum变体) --> 有限的编译期常数
-            > as ShouldAbc // `as 判断条件trait`, 实际的编译器判断发生在此处
-        >::VALUE; // 为构成合法语句, 还是要调用关联函数或取值关联常数
-    ()
+        >::CHECK_CONST; // 为构成合法语句, 还是要调用关联函数或取值关联常数
 };
 ```
 
@@ -252,10 +263,10 @@ const _: () = {
     // 一个局部作用域， 可定义，可计算，
     // 定义的类型不会影响外部
     // 在此使用编译期条件判断
+    // 内部调用的函数必须为 const fn
     trait Xyz {}
     struct Abc;
     fn f42() {}
-    ()
 };
 ```
 ### syn & quote

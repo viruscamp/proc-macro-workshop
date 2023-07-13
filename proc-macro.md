@@ -43,6 +43,9 @@
     ```
 
 ## Derive 宏
+在 struct enum union 定义前  
+名字定义在 `#[proc_macro_derive(名字)]`, 通常与要实现的 trait 同名  
+输出是**追加**到原定义后的，不会修改原定义
 - 使用
     ```rust
     #[derive(Builder)]
@@ -85,6 +88,38 @@
         }.into()
     }
     ```
+
+## 属性式
+属性宏是附加到 items 的 属性。  
+名字是函数名  
+替换被标记的定义
+- 使用
+    ```rust
+    #[show_streams(对应 attr)]
+    fn invoke1() {} // 对应 item
+    ```
+- 定义
+    ```rust
+    #[proc_macro_attribute]
+    pub fn show_streams(attr: proc_macro::TokenStream, item: proc_macro::TokenStream)
+        -> proc_macro::TokenStream {
+        quote! {
+
+        }.into()
+    }
+    ```
+
+## 函数式
+名字是函数名
+```rust
+#[proc_macro]
+pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    quote! {
+
+    }.into()
+}
+```
+
 ## Tips
 ### 模式匹配
 - `dbg!(attr)` 获取语法树结构，稍微改动即可作为模式匹配
@@ -153,6 +188,76 @@ let mut new_group = Group::new(g.delimiter(), group_inner);
 new_group.set_span(g.span()); // 重要报错时保留来源位置
 output.append(new_group) // 处理后的输出
 ```
+
+### 编译期条件判断
+编译期常数(i32/enum变体)  
+--(const fn)--> 有限的编译期常数(true/false/0..8)  
+--(一对一)--> 常数泛型类型/常数对应类型  
+--(部分实现`判断条件trait`)--> `as 判断条件trait`  
+```rust
+// 常数泛型类型， 推荐用法
+struct StaticBool<const B: bool>;
+// 常数对应类型， 不推荐
+struct True;
+struct False;
+
+// 常数泛型类型 --> 常数对应类型
+// 1. 此语法不稳定
+impl StaticBool<true> {
+    type Target = True;
+}
+// 2. 需要一个 trait 中转
+trait StaticBoolTarget {
+    type Target;
+}
+impl StaticBoolTarget for StaticBool<true> {
+    type Target = True;
+}
+impl StaticBoolTarget for StaticBool<false> {
+    type Target = False;
+}
+
+// 判断条件trait
+trait ShouldAbc {
+    const VALUE: () = ();
+}
+// 部分实现判断条件trait, 通常只实现 True 就可以
+impl ShouldAbc for True {}
+impl ShouldAbc for StaticBool<true> {}
+
+// const _ 技巧
+const _: () = {
+    const _: () =
+        <
+            <
+                StaticBool< // 常数泛型类型
+                    { UserType::SIZE > (UserType::Varian1 as usize) } // 编译期常数(i32/enum变体) --> 有限的编译期常数
+                > as StaticBoolTarget
+            >::Target // 常数泛型类型 --> 常数对应类型, 需要 `as StaticBooleanTarget`
+                as ShouldAbc // `as 判断条件trait`, 实际的编译器判断发生在此处
+        >::VALUE; // 为构成合法语句, 还是要调用关联函数或取值关联常数
+    const _: () =
+        <
+            StaticBool< // 常数泛型类型
+                    { UserType::SIZE > (UserType::Varian1 as usize) } // 编译期常数(i32/enum变体) --> 有限的编译期常数
+            > as ShouldAbc // `as 判断条件trait`, 实际的编译器判断发生在此处
+        >::VALUE; // 为构成合法语句, 还是要调用关联函数或取值关联常数
+    ()
+};
+```
+
+### `const _` 技巧
+```rust
+const _: () = {
+    // 一个局部作用域， 可定义，可计算，
+    // 定义的类型不会影响外部
+    // 在此使用编译期条件判断
+    trait Xyz {}
+    struct Abc;
+    fn f42() {}
+    ()
+};
+```
 ### syn & quote
 - quote 中动态字符串， 带""的字符串
     ```rust
@@ -186,3 +291,5 @@ output.append(new_group) // 处理后的输出
         //Meta::List: `#[derive(Copy, Clone)]` `#[debug(bound = "T::Value: Debug")]`
         //Meta::NameValue: `#[path = "sys/windows.rs"]`
     ```
+- `quote_spanned! { id.span() => stmt }`
+    将 stmt 的报错位置指向 id, 否则会指向宏使用处

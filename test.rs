@@ -52,3 +52,44 @@ fn bitfield12() {
     assert_eq!(c, bitfield.get_c());
     assert_eq!(d, bitfield.get_d());
 }
+
+#[test]
+fn builder() {
+    use derive_builder::Builder;
+
+    #[derive(Builder)]
+    pub struct Command {
+        executable: String,
+        #[builder(each = "arg")]
+        args: Vec<String>,
+        #[builder(each = env)]
+        env: Vec<String>,
+        current_dir: Option<String>,
+    }
+}
+
+#[test]
+fn seq_postfix() {
+    use seq::seq;
+/*
+warning: function `f1Vec` should have a snake case name
+  --> test.rs:76:12
+   |
+76 |         fn f~N~Vec () -> u64 {
+   |            ^ help: convert the identifier to snake case: `f1_vec`
+   |
+   = note: `#[warn(non_snake_case)]` on by default
+*/
+    seq!(N in 1..4 {
+        fn f~N~Vec () -> u64 {
+            N * 2
+        }
+    });
+
+    fn f0() -> u64 {
+        100
+    }
+
+    let sum = f0() + f1Vec() + f2Vec() + f3Vec();
+    assert_eq!(sum, 100 + 2 + 4 + 6);
+}

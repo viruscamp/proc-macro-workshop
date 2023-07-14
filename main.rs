@@ -22,6 +22,10 @@ fn builder() {
         env: Vec<String>,
         current_dir: Option<String>,
     }
+}
+
+fn builder_fuzzy_option() {
+    use derive_builder::Builder;
 
     use core::option::Option as OptionRexport;
     type OptionI32 = Option<i32>;
@@ -37,7 +41,10 @@ fn builder() {
         o5: OptionRexport<String>, // impossible
         o6: OptionI32, // impossible
     }
-    
+}
+
+fn builder_error() {
+    use derive_builder::Builder;
     #[derive(Builder)]
     struct CommandError {
         #[builder(echo = "arg1")]
@@ -64,8 +71,6 @@ fn builder() {
 }
 
 fn debug() {
-    fn assert_debug<F: ::core::fmt::Debug>() {}
-
     use derive_debug::CustomDebug;
 
     #[derive(CustomDebug)]
@@ -75,7 +80,10 @@ fn debug() {
         bitmask: u8,
     }
     //Field []
+}
 
+fn debug4() {
+    use derive_debug::CustomDebug;
     #[derive(CustomDebug)]
     pub struct Field041<T> {
         value: T,
@@ -101,7 +109,10 @@ fn debug() {
         bitmask: u8,
     }
     //Field043 [(Some(Ident { ident: "T", span: #0 bytes(2300..2301) }), true), (Some(Ident { ident: "X", span: #0 bytes(2331..2332) }), true)]
+}
 
+fn debug5() {
+    use derive_debug::CustomDebug;
     use core::marker::PhantomData;
 
     type S = String;
@@ -140,7 +151,10 @@ fn debug() {
         t2: T,
     }
     //Field053 [(Some(Ident { ident: "T", span: #0 bytes(3282..3283) }), true)]
+}
 
+fn debug6() {
+    use derive_debug::CustomDebug;
     // 06-bound-trouble
     #[derive(CustomDebug)]
     pub struct One<T> {
@@ -154,7 +168,12 @@ fn debug() {
         one: Box<One<T>>,
     }
     //Two [(Some(Ident { ident: "T", span: #0 bytes(3580..3581) }), true)]
+}
 
+fn debug7() {
+    use derive_debug::CustomDebug;
+
+    fn assert_debug<F: ::core::fmt::Debug>() {}
 
     // 07-associated-type
     pub trait Trait {
@@ -197,6 +216,11 @@ fn debug() {
         v5: Box<T::Value3<i16>>,
     }
     assert_debug::<Field71<u32, ()>>();
+}
+
+fn debug8() {
+    use derive_debug::CustomDebug;
+    fn assert_debug<F: ::core::fmt::Debug>() {}
 
     // 08-escape-hatch
     {
@@ -303,6 +327,23 @@ fn seq4() {
     }
 
     let sum = f0() + f1() + f2() + f3();
+    assert_eq!(sum, 100 + 2 + 4 + 6);
+}
+
+fn seq4_postfix() {
+    use seq::seq;
+
+    seq!(N in 1..4 {
+        fn f~N~x () -> u64 {
+            N * 2
+        }
+    });
+
+    fn f0() -> u64 {
+        100
+    }
+
+    let sum = f0() + f1x() + f2x() + f3x();
     assert_eq!(sum, 100 + 2 + 4 + 6);
 }
 
@@ -698,8 +739,6 @@ fn bitfield6() {
         Startup = 0b110,
         External = 0b111,
     }
-
-    let a = DeliveryMode::Fixed.
 }
 
 fn bitfield7() {

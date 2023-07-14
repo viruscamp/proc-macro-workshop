@@ -120,6 +120,42 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 ```
 
+## 卫生性 hygiene
+不影响或不受其周围环境的影响
+- 不受其周围环境的影响  
+    不要在宏内直接使用 `Result<T,E>`, 外部context可能有 `type Result<T> = ::std::result::Result<T, MyError>`  
+    考虑到 nostd 环境， 应该用 `::core::result::Result<T,E>`, `::core::option::Option<T>` 
+- 不影响其周围环境  
+    设计目的之外，没有额外的影响  
+    `#derive(Builder) struct Xyz;`的设计目的是生成 `struct XyzBuilder`   
+    辅助函数和类型不应该外部可见  
+    假设有一个辅助函数 `fn __internal_foo() {}`, 当多次调用 `#derive(Builder) struct Xyz; #derive(Builder) struct Abc;`时，会有两个 `__internal_foo` 报错。  
+    尽量不让辅助函数和辅助类型被导出， 无法避免的情况下 `fn __internal_foo_xyz() {} fn __internal_foo_abc() {}` 
+- 不可避免的受周围环境的影响  
+    `#derive(Builder)` 功能包括 field 为 `a: Vec<i32>` 生成 append 类型的函数  
+    但宏内无法确认 `Vec` 确实是 `::std::vec::Vec`  
+    未确认: 也许可以引入另一个 crate 其内部用 `trait BuilderField<T> {}` 其泛型默认实现， 以及针对 `Vec` 的特化实现，来实现部分功能  
+
+## span
+表示源码的位置，没有 warning 和 error 时，不起作用  
+没有注意 span 时，很可能编译错误指向宏使用处 `#[show_streams] fn invoke1() {}`, 无法提供更有意义的消息  
+在宏内部创建新的结构时，尽量提供来源的 span  
+- 例一
+```rust
+errors.push(Error::new(value.span(), "invalid, must be an int which > 0"));
+```
+- 例二
+```rust
+let mut newid = format_ident!("{id}{replaceby}{postfix}");
+newid.set_span(id.span());
+```
+- 例三
+```rust
+field_checks.push(quote_spanned ! { bits.span() =>
+    const _: [u8; #bits as usize] = [0; #ty::BITS as usize];
+});
+```
+
 ## Tips
 ### 模式匹配
 - `dbg!(attr)` 获取语法树结构，稍微改动即可作为模式匹配

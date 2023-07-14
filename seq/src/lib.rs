@@ -96,14 +96,12 @@ fn replace_ident(
                         {
                             //Id~IN~id => Id1id
                             //eprintln!("Id~IN~id => Id1id {id:?}{replaceby:?}{postfix:?}");
-                            let mut newid = format_ident!("{id}{replaceby}{postfix}");
-                            newid.set_span(id.span());
+                            let newid = format_ident!("{id}{replaceby}{postfix}", span = id.span());
                             output.append(newid);
                         } else {
                             //Id~IN => Id1
                             //eprintln!("IId~IN => Id1 {id:?}{replaceby:?}");
-                            let mut newid = format_ident!("{id}{replaceby}");
-                            newid.set_span(id.span());
+                            let newid = format_ident!("{id}{replaceby}", span = id.span());
                             output.append(newid);
                             input.extend(t3);
                             input.extend(t4);

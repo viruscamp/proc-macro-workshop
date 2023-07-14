@@ -13,4 +13,5 @@ fn tests() {
     t.pass("tests/10-bits-attribute.rs");
     t.compile_fail("tests/11-bits-attribute-wrong.rs");
     t.pass("tests/12-accessors-edge.rs");
+    t.pass("tests/13-primitive_unsigned.rs");
 }

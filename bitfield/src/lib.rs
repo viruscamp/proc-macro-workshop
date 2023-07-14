@@ -28,13 +28,28 @@ impl Specifier for bool {
         u == 1
     }
     fn set(v: bool) -> u64 {
-        if v {
-            1
-        } else {
-            0
-        }
+        v as u64
     }
 }
+
+macro_rules! impl_unsigned {
+    ($ty: ty) => {
+        impl Specifier for $ty {
+            const BITS: u32 = <$ty>::BITS;
+            type Value = $ty;
+            fn get(u: u64) -> $ty {
+                u as $ty
+            }
+            fn set(v: $ty) -> u64 {
+                v as u64
+            }
+        }
+    };
+}
+impl_unsigned!(u8);
+impl_unsigned!(u16);
+impl_unsigned!(u32);
+impl_unsigned!(u64);
 
 pub struct B<U, const N: usize>(U);
 

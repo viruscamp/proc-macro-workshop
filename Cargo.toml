@@ -3,6 +3,7 @@ name = "proc-macro-workshop"
 version = "0.0.0"
 edition = "2021"
 publish = false
+default-run = "workshop"
 
 [workspace]
 members = ["builder", "debug", "seq", "sorted", "bitfield", "mylib-macro"]
@@ -18,7 +19,7 @@ proc-macro2 = "1"
 name = "workshop"
 path = "main.rs"
 
-[[test]]
+[[bin]]
 # should pass compile
 name = "test"
 path = "test.rs"

@@ -164,9 +164,9 @@ fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
                 let cur_path = &cur.1;
                 let pos_path = &pos.1;
                 errors.push(Error::new(
-                    cur.1.span(),
-                    & quote!(#cur_path should sort before #pos_path).to_string(),
-                    //format!("{} should sort before {}", cur.1, pos.1)
+                    cur_path.span(),
+                    //& quote!(#cur_path should sort before #pos_path).to_string(),
+                    &format!("{} should sort before {}", cur_path.span().source_text().unwrap(), pos_path.span().source_text().unwrap())
                 ));
             }
             last = Some(cur);

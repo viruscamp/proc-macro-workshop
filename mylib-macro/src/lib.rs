@@ -1,7 +1,5 @@
 #![feature(let_chains)]
 
-pub mod push_back_iter;
-
 use std::collections::HashSet;
 
 use syn::*;

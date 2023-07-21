@@ -2,11 +2,14 @@
 
 use proc_macro2::Span;
 //use proc_macro2::*;
-use syn::{*, spanned::Spanned};
 use quote::*;
+use syn::{spanned::Spanned, *};
 
 #[proc_macro_attribute]
-pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn bitfield(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let _ = args;
     let item_struct = parse_macro_input!(input as ItemStruct);
     let vis_struct = &item_struct.vis;
@@ -17,9 +20,11 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let mut field_checks = vec![];
 
     let mut vec_bits = vec![quote!(0)];
-    for Field { ty, ident, attrs,..} in &item_struct.fields {
-        if let Some(name_field) = ident
-        {
+    for Field {
+        ty, ident, attrs, ..
+    } in &item_struct.fields
+    {
+        if let Some(name_field) = ident {
             let generics_const = quote!(::<{ Self::BYTES }, { ( #(#vec_bits)+* ) as usize }, { <#ty as ::bitfield::Specifier>::BITS as usize }>);
             let bits_type = quote!(<#ty as ::bitfield::Specifier>::Value);
             let fn_set = format_ident!("set_{name_field}");
@@ -61,7 +66,7 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let (impl_generics, types, where_clause) = item_struct.generics.split_for_impl();
     let errors = errors.iter().map(Error::to_compile_error);
- 
+
     quote! {
         #(#errors)*
 
@@ -72,7 +77,7 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
             data: [u8; Self::BYTES],
         }
 
-        const _: () = {            
+        const _: () = {
             // 方案1，来自 static_assertions
             // 报错信息不够明确
             //const _: [(); 0 - !{ const ASSERT: bool = $x; ASSERT } as usize] = [];
@@ -118,7 +123,8 @@ pub fn bitfield(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
             #(#field_methods)*
         }
-    }.into()
+    }
+    .into()
 }
 
 #[proc_macro_derive(BitfieldSpecifier)]
@@ -142,7 +148,10 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
         let variants_len = variants_ident.len();
         let bits = bits_u64(variants_len as u64);
         if (1 << bits) != variants_len {
-            errors.push(Error::new(Span::call_site(), "BitfieldSpecifier expected a number of variants which is a power of 2"));
+            errors.push(Error::new(
+                Span::call_site(),
+                "BitfieldSpecifier expected a number of variants which is a power of 2",
+            ));
         }
         bits
     } else {
@@ -152,7 +161,7 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
     let variants_len = variants_ident.len();
     let errors = errors.iter().map(Error::to_compile_error);
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    
+
     let variant_checks = variants_ident.iter().map(|vi| {
         let vi_span = syn::spanned::Spanned::span(&vi);
         quote_spanned! { vi_span =>
@@ -178,7 +187,7 @@ pub fn derive_bitfield_specifier(input: proc_macro::TokenStream) -> proc_macro::
                 >::CHECK_CONST;
         }
     });
-    
+
     let output = quote! {
         #(#errors)*
         impl #impl_generics ::bitfield::Specifier for #enum_name #type_generics #where_clause {

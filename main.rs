@@ -32,14 +32,14 @@ fn builder_fuzzy_option() {
     // should we recognize Option below to use Option builder?
     #[derive(Builder)]
     struct CommandFuzzyOption {
-        o0: Option<u32>, // normal, may fail `type Option = ();`
+        o0: Option<u32>,                 // normal, may fail `type Option = ();`
         o1: ::core::option::Option<i32>, // should work
-        o2: core::option::Option<i32>, // should work, may fail
-        o3: ::std::option::Option<i32>, // should work
-        o4: std::option::Option<i32>, // should work, may fail
+        o2: core::option::Option<i32>,   // should work, may fail
+        o3: ::std::option::Option<i32>,  // should work
+        o4: std::option::Option<i32>,    // should work, may fail
 
         o5: OptionRexport<String>, // impossible
-        o6: OptionI32, // impossible
+        o6: OptionI32,             // impossible
     }
 }
 
@@ -93,7 +93,10 @@ fn debug4() {
     //Field041 [(Some(Ident { ident: "T", span: #0 bytes(1791..1792) }), true)]
 
     #[derive(CustomDebug)]
-    pub struct Field042<T: Clone, X> where X: Sized {
+    pub struct Field042<T: Clone, X>
+    where
+        X: Sized,
+    {
         value: T,
         x: X,
         #[debug = "0b{:08b}"]
@@ -102,7 +105,10 @@ fn debug4() {
     //Field042 [(Some(Ident { ident: "T", span: #0 bytes(1994..1995) }), true), (Some(Ident { ident: "X", span: #0 bytes(2004..2005) }), true)]
 
     #[derive(CustomDebug)]
-    pub struct Field043<T: Clone + ::core::fmt::Debug, X> where X: Sized {
+    pub struct Field043<T: Clone + ::core::fmt::Debug, X>
+    where
+        X: Sized,
+    {
         value: T,
         x: X,
         #[debug = "0b{:08b}"]
@@ -112,8 +118,8 @@ fn debug4() {
 }
 
 fn debug5() {
-    use derive_debug::CustomDebug;
     use core::marker::PhantomData;
+    use derive_debug::CustomDebug;
 
     type S = String;
 
@@ -179,7 +185,7 @@ fn debug7() {
     pub trait Trait {
         type Value;
     }
-    
+
     #[derive(CustomDebug)]
     pub struct Field7<T: Trait> {
         values: Vec<T::Value>,
@@ -229,18 +235,18 @@ fn debug8() {
         pub trait Trait {
             type Value;
         }
-        
+
         #[derive(CustomDebug)]
         #[debug(bound = "T::Value: Debug")]
         pub struct Wrapper<T: Trait> {
             field: Field<T>,
         }
-        
+
         #[derive(CustomDebug)]
         struct Field<T: Trait> {
             values: Vec<T::Value>,
         }
-        
+
         fn assert_debug<F: ::core::fmt::Debug>() {}
 
         struct Id;
@@ -248,29 +254,29 @@ fn debug8() {
         impl Trait for Id {
             type Value = u8;
         }
-    
+
         assert_debug::<Wrapper<Id>>();
     }
 
     {
         use std::fmt::Debug;
-        
+
         pub trait Trait {
             type Value;
         }
-        
+
         #[derive(CustomDebug)]
         pub struct Wrapper<T: Trait> {
             #[debug(bound = "T::Value: Debug")]
             field: Field<T>,
             field2: Vec<T>,
         }
-        
+
         #[derive(CustomDebug)]
         struct Field<T: Trait> {
             values: Vec<T::Value>,
         }
-        
+
         fn assert_debug<F: ::core::fmt::Debug>() {}
 
         struct Id;
@@ -278,7 +284,7 @@ fn debug8() {
         impl Trait for Id {
             type Value = u8;
         }
-    
+
         assert_debug::<Wrapper<Id>>();
     }
 }
@@ -424,7 +430,7 @@ fn seq8() {
 }
 
 fn seq9() {
-        use seq::seq;
+    use seq::seq;
 
     // Source of truth. Call a given macro passing nproc as argument.
     //
@@ -465,7 +471,7 @@ fn seq9() {
 
 fn sorted1() {
     use sorted::sorted;
-    
+
     #[sorted]
     pub enum Conference {
         RustBeltRust,
@@ -491,7 +497,7 @@ fn sorted2() {
         Syntax,
         Eof,
     }
-    
+
     let x = Some(4);
     #[sorted]
     match x {
@@ -544,7 +550,8 @@ fn sorted5() {
     }
 
     enum T1 {
-        X,Y
+        X,
+        Y,
     }
 
     impl Display for Error {
@@ -574,13 +581,13 @@ fn sorted6() {
 
     use std::fmt::{self, Display};
     use std::io;
-    
+
     #[sorted]
     pub enum Error {
         Fmt(fmt::Error),
         Io(io::Error),
     }
-    
+
     impl Display for Error {
         #[sorted::check]
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -600,8 +607,8 @@ fn sorted6() {
     use Test::*;
     let a = Test::A;
     match a {
-        A => 1, // Pat::Ident(PatIdent) 没有 Path
-        Test::B => 2, // Pat::Path(PatPath) 有 Path 
+        A => 1,          // Pat::Ident(PatIdent) 没有 Path
+        Test::B => 2,    // Pat::Path(PatPath) 有 Path
         Test::C(x) => x, // Pat::TupleStruct(PatTupleStruct) 有 Path
     };
     // Pat: Test::C(x)
@@ -721,13 +728,13 @@ fn bitfield6() {
         delivery_mode: DeliveryMode,
         reserved: B3,
     }
-    
+
     #[derive(BitfieldSpecifier, Debug, PartialEq)]
     pub enum TriggerMode {
         Edge = 0,
         Level = 1,
     }
-    
+
     #[derive(BitfieldSpecifier, Debug, PartialEq)]
     pub enum DeliveryMode {
         Fixed = 0b000,
@@ -749,10 +756,10 @@ fn bitfield7() {
         delivery_mode: DeliveryMode,
         reserved: B5,
     }
-    
+
     const F: isize = 3;
     const G: isize = 0;
-    
+
     #[derive(BitfieldSpecifier, Debug, PartialEq)]
     pub enum DeliveryMode {
         Fixed = F,
@@ -835,7 +842,7 @@ fn bitfield11() {
         trigger_mode: TriggerMode,
         reserved: B7,
     }
-    
+
     #[derive(BitfieldSpecifier, Debug)]
     pub enum TriggerMode {
         Edge = 0,
@@ -853,7 +860,7 @@ fn bitfield12() {
         c: B13,
         d: B4,
     }
-    
+
     let mut bitfield = EdgeCaseBytes::new();
     assert_eq!(0, bitfield.get_a());
     assert_eq!(0, bitfield.get_b());
@@ -888,7 +895,7 @@ fn bitfield13() {
         x64: u64,
         d: B4,
     }
-    
+
     let mut bitfield = EdgeCaseBytes::new();
     assert_eq!(0, bitfield.get_a());
     assert_eq!(0, bitfield.get_x8());

@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use syn::*;
 use quote::*;
+use syn::*;
 
 // all segments must be ident, ignore all <>
 pub fn is_path(p: &Path, tocmp: &Path) -> bool {
@@ -22,8 +22,10 @@ pub fn is_path(p: &Path, tocmp: &Path) -> bool {
     return true;
 }
 
-pub fn is_types_one_param<'a, 'b>(ty: &'a Type, mut types: impl Iterator<Item = &'b Path>) -> Option<&'a Type>
-{
+pub fn is_types_one_param<'a, 'b>(
+    ty: &'a Type,
+    mut types: impl Iterator<Item = &'b Path>,
+) -> Option<&'a Type> {
     if let Type::Path(TypePath { path, qself: None }) = ty
         && let Some(last) = path.segments.last()
         && let PathArguments::AngleBracketed(ref tps) = last.arguments
@@ -87,44 +89,41 @@ pub fn contains_generic_param(ty: &Type, gpid: &Ident) -> bool {
             } else if is_phantom(ty).is_some() {
                 false
             } else if let Some(PathSegment {
-                arguments: PathArguments::AngleBracketed(
-                    AngleBracketedGenericArguments {
-                        args,
-                        .. 
-                    }
-                ),
+                arguments:
+                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }),
                 ..
-            }) = path.segments.last() {
-                args.iter().any(|arg| {
-                    match arg {
-                        GenericArgument::Type(ref ty)
-                            | GenericArgument::AssocType(AssocType { ref ty, ..  })
-                        => contains_generic_param(ty, gpid),
-                        _ => false,
+            }) = path.segments.last()
+            {
+                args.iter().any(|arg| match arg {
+                    GenericArgument::Type(ref ty)
+                    | GenericArgument::AssocType(AssocType { ref ty, .. }) => {
+                        contains_generic_param(ty, gpid)
                     }
+                    _ => false,
                 })
             } else {
                 false
             }
-        },
+        }
         Type::Tuple(TypeTuple { elems, .. }) => {
             elems.iter().any(|ty| contains_generic_param(ty, gpid))
-        },
+        }
         Type::Paren(TypeParen { elem, .. })
-            | Type::Array(TypeArray { elem, .. })
-            | Type::Slice(TypeSlice { elem, ..  })
-            | Type::Reference(TypeReference { elem, ..  })
-        => {
+        | Type::Array(TypeArray { elem, .. })
+        | Type::Slice(TypeSlice { elem, .. })
+        | Type::Reference(TypeReference { elem, .. }) => {
             contains_generic_param(elem.as_ref(), gpid)
-        },
+        }
         Type::Ptr(TypePtr { elem: _, .. }) => false,
         _ => false,
     }
 }
 
-pub fn used_generic_param<'a, 'b>(ty: &'a Type, gpids: &'b [&'b Ident], path_with_param: &mut HashSet<&'a Path>)
-    -> bool
-{
+pub fn used_generic_param<'a, 'b>(
+    ty: &'a Type,
+    gpids: &'b [&'b Ident],
+    path_with_param: &mut HashSet<&'a Path>,
+) -> bool {
     match ty {
         Type::Path(TypePath { path, qself }) => {
             if let Some(_qself) = qself {
@@ -156,7 +155,7 @@ pub fn used_generic_param<'a, 'b>(ty: &'a Type, gpids: &'b [&'b Ident], path_wit
                 arguments: PathArguments::AngleBracketed(
                     AngleBracketedGenericArguments {
                         args,
-                        .. 
+                        ..
                     }
                 ),
                 ..
@@ -174,21 +173,20 @@ pub fn used_generic_param<'a, 'b>(ty: &'a Type, gpids: &'b [&'b Ident], path_wit
             } else {
                 false
             }
-        },
+        }
         Type::Tuple(TypeTuple { elems, .. }) => {
             let mut has = false;
             for ty in elems {
                 has |= used_generic_param(ty, gpids, path_with_param);
             }
             has
-        },
+        }
         Type::Paren(TypeParen { elem, .. })
-            | Type::Array(TypeArray { elem, .. })
-            | Type::Slice(TypeSlice { elem, ..  })
-            | Type::Reference(TypeReference { elem, ..  })
-        => {
+        | Type::Array(TypeArray { elem, .. })
+        | Type::Slice(TypeSlice { elem, .. })
+        | Type::Reference(TypeReference { elem, .. }) => {
             used_generic_param(elem.as_ref(), gpids, path_with_param)
-        },
+        }
         Type::Ptr(TypePtr { elem: _, .. }) => false,
         _ => false,
     }

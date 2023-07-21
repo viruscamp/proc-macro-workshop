@@ -12,11 +12,14 @@ fn test() {
     }
     use Test::*;
     let a = Test::A;
-    println!("a: {}", match a {
-        A => 1, // Pat::Ident(PatIdent) 没有 Path
-        Test::B => 2, // Pat::Path(PatPath) 有 Path 
-        Test::C(x) => x, // Pat::TupleStruct(PatTupleStruct) 有 Path
-    });
+    println!(
+        "a: {}",
+        match a {
+            A => 1,          // Pat::Ident(PatIdent) 没有 Path
+            Test::B => 2,    // Pat::Path(PatPath) 有 Path
+            Test::C(x) => x, // Pat::TupleStruct(PatTupleStruct) 有 Path
+        }
+    );
 }
 
 #[test]
@@ -30,7 +33,7 @@ fn bitfield12() {
         c: B13,
         d: B4,
     }
-    
+
     let mut bitfield = EdgeCaseBytes::new();
     assert_eq!(0, bitfield.get_a());
     assert_eq!(0, bitfield.get_b());
@@ -71,15 +74,15 @@ fn builder() {
 #[test]
 fn seq_postfix() {
     use seq::seq;
-/*
-warning: function `f1Vec` should have a snake case name
-  --> test.rs:76:12
-   |
-76 |         fn f~N~Vec () -> u64 {
-   |            ^ help: convert the identifier to snake case: `f1_vec`
-   |
-   = note: `#[warn(non_snake_case)]` on by default
-*/
+    /*
+    warning: function `f1Vec` should have a snake case name
+      --> test.rs:76:12
+       |
+    76 |         fn f~N~Vec () -> u64 {
+       |            ^ help: convert the identifier to snake case: `f1_vec`
+       |
+       = note: `#[warn(non_snake_case)]` on by default
+    */
     seq!(N in 1..4 {
         fn f~N~Vec () -> u64 {
             N * 2

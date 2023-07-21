@@ -1,9 +1,9 @@
 #![feature(let_chains)]
 
-use proc_macro2::*;
-use syn::*;
-use quote::*;
 use mylib_macro::*;
+use proc_macro2::*;
+use quote::*;
+use syn::*;
 
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -25,7 +25,10 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         ..
     }) = input.data
     {
-        for Field { ident, ty, attrs, .. } in named {
+        for Field {
+            ident, ty, attrs, ..
+        } in named
+        {
             // find `#[builder(..)]`
             if let Some((attr, tokens)) = attrs.iter().find_map(|attr| {
                 if let Meta::List(MetaList {
@@ -55,14 +58,13 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 #ident: ::core::mem::take(&mut self.#ident)
                             });
                         } else {
-                            errors.push(
-                                Error::new_spanned(ty, "builder attr each without Vec type")
-                            )
+                            errors
+                                .push(Error::new_spanned(ty, "builder attr each without Vec type"))
                         }
-                    },
+                    }
                     Err(err) => {
                         errors.push(err);
-                    },
+                    }
                 }
             } else if let Some(ty_inner) = is_option(ty) {
                 fields_builder.push(quote! {
@@ -74,7 +76,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         self
                     }
                 });
-                build_internal.push(quote!{
+                build_internal.push(quote! {
                     #ident: ::core::mem::take(&mut self.#ident)
                 });
             } else {
@@ -87,7 +89,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         self
                     }
                 });
-                build_internal.push(quote!{
+                build_internal.push(quote! {
                     #ident: self.#ident.take()?
                 });
             }
@@ -171,7 +173,7 @@ fn get_each_method_name(attr: &Attribute, tokens: &TokenStream) -> Result<Ident>
     }
 }
 
-# [allow (dead_code)]
+#[allow(dead_code)]
 mod showcase {
     //#[derive(Builder)]
     pub struct Command {

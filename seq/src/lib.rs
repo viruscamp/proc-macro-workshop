@@ -1,10 +1,10 @@
 #![feature(let_chains)]
 
 use proc_macro2::*;
-use syn::*;
+use quote::*;
 use syn::buffer::TokenBuffer;
 use syn::parse::*;
-use quote::*;
+use syn::*;
 
 struct Seq {
     name: Ident,
@@ -18,7 +18,7 @@ impl Parse for Seq {
         let name: Ident = input.parse()?;
         input.parse::<Token![in]>()?;
         let from: LitInt = input.parse()?;
-        
+
         let inclusive = if input.peek(Token![..=]) {
             input.parse::<Token![..=]>()?;
             true
@@ -43,10 +43,20 @@ impl Parse for Seq {
 
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let Seq { name, from, inclusive, to, body } = parse_macro_input!(input as Seq);
+    let Seq {
+        name,
+        from,
+        inclusive,
+        to,
+        body,
+    } = parse_macro_input!(input as Seq);
     let from = from.base10_parse::<i64>().unwrap();
     let to = to.base10_parse::<i64>().unwrap();
-    let nums = if inclusive { from..=to } else { from..=(to - 1) };
+    let nums = if inclusive {
+        from..=to
+    } else {
+        from..=(to - 1)
+    };
 
     let (output, has_section) = repeat_section(body.stream(), &name, nums.clone());
     if has_section {
@@ -54,18 +64,13 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     } else {
         let mut output = TokenStream::new();
         for replaceby in nums.clone() {
-            replace_ident(body.stream(), &name, replaceby)
-                .to_tokens(&mut output);
+            replace_ident(body.stream(), &name, replaceby).to_tokens(&mut output);
         }
         output.into()
     }
 }
 
-fn replace_ident(
-    input: TokenStream,
-    toreplace: &Ident,
-    replaceby: i64,
-) -> TokenStream {
+fn replace_ident(input: TokenStream, toreplace: &Ident, replaceby: i64) -> TokenStream {
     let mut output = TokenStream::new();
     let input = TokenBuffer::new2(input);
     let mut cur = input.begin();
@@ -79,7 +84,7 @@ fn replace_ident(
             let replaceby = LitInt::new(&replaceby.to_string(), id.span());
             replaceby.to_tokens(&mut output);
             cur
-        } else if true 
+        } else if true
             && let Some((prefix, cur)) = cur.ident()
             && let Some((p, cur)) = cur.punct()
             && p.as_char() == '~'
@@ -135,16 +140,16 @@ fn repeat_section(
     let input = TokenBuffer::new2(input);
     let mut cur = input.begin();
 
-    loop{
-        cur = if true 
+    loop {
+        cur = if true
         	&& let Some((p_begin, cur)) = cur.punct()
             && p_begin.as_char() == '#'
-            
+
             //&& let Some((g, span, cur)) = cur.group(Delimiter::Parenthesis)
             && let Some((tt, cur)) = cur.token_tree()
             && let TokenTree::Group(g) = tt
-            && g.delimiter() == Delimiter::Parenthesis            
-            
+            && g.delimiter() == Delimiter::Parenthesis
+
             && let Some((p_end, cur)) = cur.punct()
             && p_end.as_char() == '*'
         {

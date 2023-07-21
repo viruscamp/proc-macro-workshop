@@ -1,15 +1,18 @@
 #![feature(let_chains)]
 
 use proc_macro2::*;
-use syn::*;
-use syn::parse::{ParseStream, Parse, discouraged::Speculative};
 use quote::*;
+use syn::parse::{discouraged::Speculative, Parse, ParseStream};
 use syn::spanned::Spanned;
+use syn::*;
 
 #[proc_macro_attribute]
-pub fn sorted(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn sorted(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let _ = args;
-    
+
     let mut errors = vec![];
 
     let t = if let Ok(enum_item) = parse::<ItemEnum>(input.clone()) {
@@ -18,7 +21,10 @@ pub fn sorted(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     } else if let Ok(match_expr) = parse::<ExprMatch>(input.clone()) {
         match_expr.to_token_stream()
     } else {
-        errors.push(Error::new(Span::call_site(), "expected enum or match expression"));
+        errors.push(Error::new(
+            Span::call_site(),
+            "expected enum or match expression",
+        ));
         TokenStream::from(input)
     };
 
@@ -26,16 +32,24 @@ pub fn sorted(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     quote! {
         #(#errors)*
         #t
-    }.into()
+    }
+    .into()
 }
 
 #[proc_macro_attribute]
-pub fn check(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn check(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
     let _ = args;
     let mut output = TokenStream::new();
     let mut errors = vec![];
 
-    if let Err(err) = process_tokens(TokenStream::from(input).into_iter(), &mut output, &mut errors) {
+    if let Err(err) = process_tokens(
+        TokenStream::from(input).into_iter(),
+        &mut output,
+        &mut errors,
+    ) {
         errors.push(err);
     }
 
@@ -43,7 +57,8 @@ pub fn check(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> p
     quote! {
         #(#errors)*
         #output
-    }.into()
+    }
+    .into()
 }
 
 #[derive(Debug)]
@@ -51,7 +66,7 @@ struct TokenSearch<T: Parse> {
     found: Vec<(Vec<TokenTree>, T)>,
     tail: Vec<TokenTree>,
 }
-impl<T: Parse> Parse for TokenSearch<T>  {
+impl<T: Parse> Parse for TokenSearch<T> {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut found = vec![];
         let mut tokens = vec![];
@@ -83,11 +98,12 @@ impl Parse for MatchWithSorted {
         let mut expr_match: ExprMatch = input.parse()?;
         let len_old = expr_match.attrs.len();
         expr_match.attrs.retain(|attr| {
-            ! match &attr.meta {
+            !match &attr.meta {
                 Meta::Path(path) => path,
                 Meta::List(MetaList { path, .. }) => path,
-                Meta::NameValue(MetaNameValue { path, ..}) => path,
-            }.is_ident(&id_sorted)
+                Meta::NameValue(MetaNameValue { path, .. }) => path,
+            }
+            .is_ident(&id_sorted)
         });
 
         if len_old == expr_match.attrs.len() {
@@ -112,7 +128,11 @@ fn process_sorted_match(input: TokenStream, errors: &mut Vec<Error>) -> Result<T
     Ok(output)
 }
 
-fn process_tokens(tokens: impl Iterator<Item = TokenTree>, output: &mut TokenStream, errors: &mut Vec<Error>) -> Result<()> {
+fn process_tokens(
+    tokens: impl Iterator<Item = TokenTree>,
+    output: &mut TokenStream,
+    errors: &mut Vec<Error>,
+) -> Result<()> {
     for tt in tokens {
         match tt {
             TokenTree::Group(g) => {
@@ -120,7 +140,7 @@ fn process_tokens(tokens: impl Iterator<Item = TokenTree>, output: &mut TokenStr
                 let mut new_group = Group::new(g.delimiter(), new_stream);
                 new_group.set_span(g.span());
                 output.append(new_group)
-            },
+            }
             _ => output.append(tt),
         }
     }
@@ -151,8 +171,7 @@ fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
             idx_underscore = Some(idx);
             continue;
         }
-        if let Some(cur) = enum_variant_from_arm(&arm)
-        {
+        if let Some(cur) = enum_variant_from_arm(&arm) {
             if let Some(ref last) = last
                 && last.0.cmp(cur.0).is_ge()
             {
@@ -170,10 +189,7 @@ fn check_sorted_expr_match(expr_match: &ExprMatch, errors: &mut Vec<Error>) {
             }
             last = Some(cur);
         } else {
-            errors.push(Error::new(
-                arm.pat.span(),
-                "unsupported by #[sorted]",
-            ));
+            errors.push(Error::new(arm.pat.span(), "unsupported by #[sorted]"));
             break;
         }
     }
@@ -198,7 +214,7 @@ fn check_sorted_item_enum(enum_item: &ItemEnum, errors: &mut Vec<Error>) {
             let pos = enum_item.variants.iter()
                 .map(|v| &v.ident)
                 .find(|vi| cur.cmp(vi).is_le())
-                .unwrap_or(last); 
+                .unwrap_or(last);
             errors.push(Error::new(cur.span(), format!("{} should sort before {}", cur, pos)));
         }
         last = Some(cur);

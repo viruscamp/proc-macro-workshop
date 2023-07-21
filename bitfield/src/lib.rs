@@ -172,11 +172,7 @@ pub fn set<const S: usize>(a: &mut [u8; S], v: u64, from: usize, bits: usize) {
 ///11000001  pos=1, len=5
 const fn mask_neg(len: u32, pos: u32) -> u8 {
     assert!(len + pos <= u8::BITS);
-    if len == 8 {
-        0x00u8
-    } else {
-        0xffu8 << len
-    }.rotate_left(pos)
+    if len == 8 { 0x00u8 } else { 0xffu8 << len }.rotate_left(pos)
 }
 
 ///00111110  pos=1, len=5
@@ -189,11 +185,11 @@ const fn mask_get(d: u8, len: u32, pos: u32) -> u8 {
 }
 
 const fn mask_set(d: u8, v: u8, len: u32, pos: u32) -> u8 {
-    d & mask_neg(len, pos) | ( (v & mask(len, 0)) << pos )
+    d & mask_neg(len, pos) | ((v & mask(len, 0)) << pos)
 }
 
 const fn mask_set_unchecked(d: u8, v: u8, len: u32, pos: u32) -> u8 {
-    d & mask_neg(len, pos) | (v << pos )
+    d & mask_neg(len, pos) | (v << pos)
 }
 
 pub mod checks {

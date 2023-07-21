@@ -182,18 +182,15 @@ fn extract_attr_debug_bounds(attrs: &Vec<Attribute>) -> Vec<Result<LitStr>> {
                 && punct_eq.as_char() == '='
                 && let Some(bound_val) = tokens_iter.next()
             {
-                if let TokenTree::Literal(bound_val) = bound_val {
-                    // must be a str "abc" ""
-                    if let Ok(Lit::Str(s)) = syn::parse_str::<Lit>(&bound_val.to_string()) {
-                        bounds.push(Ok(s));
-                    } else {
-                        bounds.push(Err(
-                            Error::new_spanned(bound_val, "must be a string")
-                        ));
-                    }
+                // must be a str "abc" ""
+                if let TokenTree::Literal(ref bound_val) = bound_val
+                    && let bound_val = Lit::new(bound_val.clone())
+                    && let Lit::Str(s) = bound_val
+                {
+                    bounds.push(Ok(s));
                 } else {
                     bounds.push(Err(
-                        Error::new_spanned(bound_val, "nmust be string")
+                        Error::new_spanned(bound_val, "must be a string")
                     ));
                 }
             }

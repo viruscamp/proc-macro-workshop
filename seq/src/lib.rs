@@ -86,6 +86,11 @@ fn replace_ident(
             && let Some((id, cur)) = cur.ident()
             && &id == toreplace
         {
+            let replaceby = if replaceby < 0 {
+                format!("_{}", -replaceby)
+            } else {
+                format!("{}", replaceby)
+            };
             if true
                 && let Some((p, cur)) = cur.punct()
                 && p.as_char() == '~'

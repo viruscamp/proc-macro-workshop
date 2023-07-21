@@ -10,4 +10,6 @@ fn tests() {
     t.pass("tests/07-inclusive-range.rs");
     t.compile_fail("tests/08-ident-span.rs");
     t.pass("tests/09-interaction-with-macrorules.rs");
+    t.pass("tests/10-paste-ident-negative.rs");
+    t.pass("tests/11-init-array-negative.rs");
 }

@@ -44,8 +44,8 @@ impl Parse for Seq {
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, inclusive, to, body } = parse_macro_input!(input as Seq);
-    let from = from.base10_parse::<u32>().unwrap();
-    let to = to.base10_parse::<u32>().unwrap();
+    let from = from.base10_parse::<i64>().unwrap();
+    let to = to.base10_parse::<i64>().unwrap();
     let nums = if inclusive { from..=to } else { from..=(to - 1) };
 
     let (output, has_section) = repeat_section(body.stream(), &name, nums.clone());
@@ -64,7 +64,7 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn replace_ident(
     input: TokenStream,
     toreplace: &Ident,
-    replaceby: u32,
+    replaceby: i64,
 ) -> TokenStream {
     let mut output = TokenStream::new();
     let input = TokenBuffer::new2(input);
@@ -76,6 +76,7 @@ fn replace_ident(
         {
             //IN => 1
             //eprintln!("IN => 1 {id:?}");
+            let replaceby = LitInt::new(&replaceby.to_string(), id.span());
             replaceby.to_tokens(&mut output);
             cur
         } else if true 
@@ -92,13 +93,13 @@ fn replace_ident(
             {
                 //pre~IN~post => pre1post
                 //eprintln!("pre~IN~post => pre1post {prefix:?}{replaceby:?}{postfix:?}");
-                let newid = format_ident!("{}{}{}", prefix, replaceby, postfix);
+                let newid = format_ident!("{prefix}{replaceby}{postfix}", span = prefix.span());
                 output.append(newid);
                 cur
             } else {
                 //pre~IN => pre1
                 //eprintln!("pre~IN => pre1 {prefix:?}{replaceby:?}");
-                let newid = format_ident!("{}{}", prefix, replaceby);
+                let newid = format_ident!("{prefix}{replaceby}", span = prefix.span());
                 output.append(newid);
                 cur
             }
@@ -122,7 +123,7 @@ fn replace_ident(
 fn repeat_section(
     input: TokenStream,
     toreplace: &Ident,
-    range: impl Iterator<Item = u32> + Clone,
+    range: impl Iterator<Item = i64> + Clone,
 ) -> (TokenStream, bool) {
     let mut has_section = false;
     let mut output = TokenStream::new();

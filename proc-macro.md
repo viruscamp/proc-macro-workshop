@@ -319,10 +319,13 @@ const _: () = {
     ```
 - `format_ident!`
 1. 可能 panic， 想要 Result 判断，请用 `syn::parse_str::<Ident>`
-2. `format_ident!("{id}{postfix}")` 不能正确的带 `id.span()`  
+2. `format_ident!("{tokens}")` 限制是 `tokens: impl Dispaly`, 注意 `TokenStream: Display`, span 为 call_site
+3. `format_ident!("{}"，tokens)` 限制是 `tokens: impl IdentFragment`, 第一个有 span 的参数会被设为 span
+`IdentFragment` 有 Ident bool u8~u128 usize char str/String
+4. 所以 `format_ident!("{id}{postfix}")` 不能正确的带 `id.span()`  
 而`format_ident!("{}{}", id, postfix)` 能正确带 `id.span()`
-3. 当`tokens: &TokenStream` 时 `format_ident!("{}"， tokens)` 会失败，而 `format_ident!("{tokens}")` 成功
-4. 那么必须内嵌，还要带 span 时 `format_ident!("{id}{tokens}", span = id.span())` 
+5. 应该这样做 `format_ident!("{id}{tokens}", span = id.span())` 
+
 - `Path` is `Ident`
     ```rust
         let attr_id_debug = format_ident!("builder");

@@ -44,8 +44,8 @@ impl Parse for Seq {
 #[proc_macro]
 pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Seq { name, from, inclusive, to, body } = parse_macro_input!(input as Seq);
-    let from = from.base10_parse::<i32>().unwrap();
-    let to = to.base10_parse::<i32>().unwrap();
+    let from = from.base10_parse::<u32>().unwrap();
+    let to = to.base10_parse::<u32>().unwrap();
     let nums = if inclusive { from..=to } else { from..=(to - 1) };
 
     let (output, has_section) = repeat_section(body.stream(), &name, nums.clone());
@@ -54,8 +54,8 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     } else {
         let mut output = TokenStream::new();
         for replaceby in nums.clone() {
-            let replaceby = LitInt::new(&replaceby.to_string(), Span::call_site());
-            output.extend(replace_ident(body.stream(), &name, &replaceby.to_token_stream()));
+            replace_ident(body.stream(), &name, replaceby)
+                .to_tokens(&mut output);
         }
         output.into()
     }
@@ -64,7 +64,7 @@ pub fn seq(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn replace_ident(
     input: TokenStream,
     toreplace: &Ident,
-    replaceby: &TokenStream
+    replaceby: u32,
 ) -> TokenStream {
     let mut output = TokenStream::new();
     let input = TokenBuffer::new2(input);
@@ -76,7 +76,7 @@ fn replace_ident(
         {
             //IN => 1
             //eprintln!("IN => 1 {id:?}");
-            output.append_all(replaceby.clone().into_iter());
+            replaceby.to_tokens(&mut output);
             cur
         } else if true 
             && let Some((prefix, cur)) = cur.ident()
@@ -92,13 +92,13 @@ fn replace_ident(
             {
                 //pre~IN~post => pre1post
                 //eprintln!("pre~IN~post => pre1post {prefix:?}{replaceby:?}{postfix:?}");
-                let newid = format_ident!("{prefix}{replaceby}{postfix}", span = prefix.span());
+                let newid = format_ident!("{}{}{}", prefix, replaceby, postfix);
                 output.append(newid);
                 cur
             } else {
                 //pre~IN => pre1
                 //eprintln!("pre~IN => pre1 {prefix:?}{replaceby:?}");
-                let newid = format_ident!("{prefix}{replaceby}", span = prefix.span());
+                let newid = format_ident!("{}{}", prefix, replaceby);
                 output.append(newid);
                 cur
             }
@@ -122,7 +122,7 @@ fn replace_ident(
 fn repeat_section(
     input: TokenStream,
     toreplace: &Ident,
-    range: impl Iterator<Item = i32> + Clone,
+    range: impl Iterator<Item = u32> + Clone,
 ) -> (TokenStream, bool) {
     let mut has_section = false;
     let mut output = TokenStream::new();
@@ -144,8 +144,8 @@ fn repeat_section(
         {
             has_section = true;
             for replaceby in range.clone() {
-                let replaceby = LitInt::new(&replaceby.to_string(), Span::call_site());
-                output.extend(replace_ident(g.stream(), toreplace, &replaceby.to_token_stream()));
+                replace_ident(g.stream(), toreplace, replaceby)
+                    .to_tokens(&mut output);
             }
             cur
         } else if let Some((tt, cur)) = cur.token_tree() {

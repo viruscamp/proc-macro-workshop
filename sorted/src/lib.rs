@@ -75,9 +75,8 @@ impl<T: Parse> Parse for TokenSearch<T>  {
 }
 
 #[derive(Debug)]
-struct MatchWithSorted {
-    expr_match: ExprMatch,
-}
+struct MatchWithSorted(ExprMatch);
+
 impl Parse for MatchWithSorted {
     fn parse(input: ParseStream) -> Result<Self> {
         let id_sorted = format_ident!("sorted");
@@ -94,7 +93,7 @@ impl Parse for MatchWithSorted {
         if len_old == expr_match.attrs.len() {
             Err(Error::new(Span::call_site(), "no attr sorted"))
         } else {
-            Ok(Self { expr_match })
+            Ok(Self(expr_match))
         }
     }
 }
@@ -105,8 +104,8 @@ fn process_sorted_match(input: TokenStream, errors: &mut Vec<Error>) -> Result<T
     //eprintln!("search: {search:?}");
     for (tokens, expr_match) in search.found {
         process_tokens(tokens.into_iter(), &mut output, errors)?;
-        check_sorted_expr_match(&expr_match.expr_match, errors);
-        output.append_all(expr_match.expr_match.into_token_stream());
+        check_sorted_expr_match(&expr_match.0, errors);
+        expr_match.0.to_tokens(&mut output);
         // TODO 处理嵌套 match
     }
     process_tokens(search.tail.into_iter(), &mut output, errors)?;

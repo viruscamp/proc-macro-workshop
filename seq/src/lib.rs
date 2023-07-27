@@ -145,17 +145,14 @@ fn repeat_section(
         	&& let Some((p_begin, cur)) = cur.punct()
             && p_begin.as_char() == '#'
 
-            //&& let Some((g, span, cur)) = cur.group(Delimiter::Parenthesis)
-            && let Some((tt, cur)) = cur.token_tree()
-            && let TokenTree::Group(g) = tt
-            && g.delimiter() == Delimiter::Parenthesis
+            && let Some((cur_g, _span, cur)) = cur.group(Delimiter::Parenthesis)
 
             && let Some((p_end, cur)) = cur.punct()
             && p_end.as_char() == '*'
         {
             has_section = true;
             for replaceby in range.clone() {
-                replace_ident(g.stream(), toreplace, replaceby)
+                replace_ident(cur_g.token_stream(), toreplace, replaceby)
                     .to_tokens(&mut output);
             }
             cur
